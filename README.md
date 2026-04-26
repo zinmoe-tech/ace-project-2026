@@ -195,15 +195,15 @@ HelloCloudBank | GRC | sanction-svc
 
 Retail banking test:
 
-![Retail banking test result](docs/img/retail-banking-test.png)
+![Retail banking test result](docs/retail.png)
 
 Payments test:
 
-![Payments test result](docs/img/payments-test.png)
+![Payments test result](docs/payment.png)
 
 GRC test:
 
-![GRC test result](docs/img/grc-test.png)
+![GRC test result](docs/grc.png)
 
 ## Enable HTTPS
 
