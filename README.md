@@ -46,7 +46,7 @@ High-level direct domain flow:
 ```mermaid
 flowchart LR
     client[Client]
-    dns[Route 53<br/>mini-apps.click]
+    dns[Route 53<br/>retail-banking.mini-apps.click]
 
     subgraph eks[Amazon EKS]
         subgraph kic[Domain Kong Gateway Tier]
