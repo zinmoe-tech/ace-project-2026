@@ -199,7 +199,7 @@ Retail banking test:
 
 Payments test:
 
-![Payments test result](docs/payment.png)
+![Payments test result](docs/payments.png)
 
 GRC test:
 
