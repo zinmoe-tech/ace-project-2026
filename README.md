@@ -23,17 +23,9 @@ Current public domain routes:
 
 | Domain | Public URL | Entry service | Service chain |
 | --- | --- | --- | --- |
-| Retail Banking | `http://retail-banking.mini-apps.click/` | `customer-profile-svc` | `customer-profile-svc -> account-svc -> statement-svc` |
-| Payments | `http://payments.mini-apps.click/` | `transfer-svc` | `transfer-svc -> payment-gateway-svc -> fx-svc` |
-| GRC | `http://grc.mini-apps.click/` | `fraud-svc` | `fraud-svc -> audit-svc -> sanction-svc` |
-
-Optional HTTPS is managed from `for_https/`:
-
-```text
-https://retail-banking.mini-apps.click/
-https://payments.mini-apps.click/
-https://grc.mini-apps.click/
-```
+| Retail Banking | `https://retail-banking.mini-apps.click/` | `customer-profile-svc` | `customer-profile-svc -> account-svc -> statement-svc` |
+| Payments | `https://payments.mini-apps.click/` | `transfer-svc` | `transfer-svc -> payment-gateway-svc -> fx-svc` |
+| GRC | `https://grc.mini-apps.click/` | `fraud-svc` | `fraud-svc -> audit-svc -> sanction-svc` |
 
 ## Architecture
 
@@ -152,18 +144,18 @@ Summary:
 5. Deploy backend services.
 6. Apply domain HTTPRoutes.
 7. Create Route 53 alias records for the Kong LoadBalancers.
-8. Test HTTP.
-9. Optionally enable HTTPS with Terraform.
+8. Enable HTTPS with Terraform.
+9. Test HTTPS access.
 
-## Test HTTP
+## Test HTTPS
 
 ```bash
-curl -i http://retail-banking.mini-apps.click/
-curl -i http://payments.mini-apps.click/
-curl -i http://grc.mini-apps.click/
+curl -i https://retail-banking.mini-apps.click/
+curl -i https://payments.mini-apps.click/
+curl -i https://grc.mini-apps.click/
 ```
 
-If DNS is not ready locally, test through the LoadBalancer with a Host header:
+If HTTPS is not enabled yet, test HTTP through the LoadBalancer with a Host header:
 
 ```bash
 curl -i -H "Host: retail-banking.mini-apps.click" http://<retail-banking-kong-elb>/
@@ -179,9 +171,9 @@ Browser testing confirmed that all three public domain routes resolve through Ko
 
 | Domain URL | Entry service returned | Verified upstream chain | Result |
 | --- | --- | --- | --- |
-| `http://retail-banking.mini-apps.click/` | `customer-profile-svc` | `customer-profile-svc -> account-svc -> statement-svc` | `code: 200` |
-| `http://payments.mini-apps.click/` | `transfer-svc` | `transfer-svc -> payment-gateway-svc -> fx-svc` | `code: 200` |
-| `http://grc.mini-apps.click/` | `fraud-svc` | `fraud-svc -> audit-svc -> sanction-svc` | `code: 200` |
+| `https://retail-banking.mini-apps.click/` | `customer-profile-svc` | `customer-profile-svc -> account-svc -> statement-svc` | `code: 200` |
+| `https://payments.mini-apps.click/` | `transfer-svc` | `transfer-svc -> payment-gateway-svc -> fx-svc` | `code: 200` |
+| `https://grc.mini-apps.click/` | `fraud-svc` | `fraud-svc -> audit-svc -> sanction-svc` | `code: 200` |
 
 Sample response indicators:
 
