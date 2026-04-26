@@ -173,6 +173,32 @@ curl -i -H "Host: grc.mini-apps.click" http://<grc-kong-elb>/
 
 Expected result: `HTTP/1.1 200 OK` with a fake-service response showing the upstream service chain.
 
+## Verified Test Results
+
+Browser testing confirmed that all three public domain routes resolve through Kong and return successful fake-service responses.
+
+| Domain URL | Entry service returned | Verified upstream chain | Result |
+| --- | --- | --- | --- |
+| `http://retail-banking.mini-apps.click/` | `customer-profile-svc` | `customer-profile-svc -> account-svc -> statement-svc` | `code: 200` |
+| `http://payments.mini-apps.click/` | `transfer-svc` | `transfer-svc -> payment-gateway-svc -> fx-svc` | `code: 200` |
+| `http://grc.mini-apps.click/` | `fraud-svc` | `fraud-svc -> audit-svc -> sanction-svc` | `code: 200` |
+
+Sample response indicators:
+
+```text
+HelloCloudBank | Retail Banking | customer-profile-svc
+HelloCloudBank | Retail Banking | account-svc
+HelloCloudBank | Retail Banking | statement-svc
+
+HelloCloudBank | Payments | transfer-svc
+HelloCloudBank | Payments | payment-gateway-svc
+HelloCloudBank | Payments | fx-svc
+
+HelloCloudBank | GRC | fraud-svc
+HelloCloudBank | GRC | audit-svc
+HelloCloudBank | GRC | sanction-svc
+```
+
 ## Enable HTTPS
 
 The `for_https/` Terraform creates:
