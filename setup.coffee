@@ -22,14 +22,14 @@ eksctl create cluster \
 aws eks update-kubeconfig \
   --name demo-eks-cluster \
   --region ap-southeast-1 \
-  --profile demo-microservices
+  --profile aws-profile
 
 kubectl get nodes
 kubectl get ns
 
 eksctl get cluster \
   --region ap-southeast-1 \
-  --profile demo-microservices
+  --profile aws-profile
 
 ################################################################################
 # 2. Install Gateway API CRDs
