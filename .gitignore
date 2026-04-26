@@ -1,0 +1,15 @@
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+terraform.tfvars
+*.auto.tfvars
+crash.log
+crash.*.log
+
+.DS_Store
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+*.log
