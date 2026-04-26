@@ -199,6 +199,20 @@ HelloCloudBank | GRC | audit-svc
 HelloCloudBank | GRC | sanction-svc
 ```
 
+### Browser Test Screenshots
+
+Retail banking test:
+
+![Retail banking test result](docs/img/retail-banking-test.png)
+
+Payments test:
+
+![Payments test result](docs/img/payments-test.png)
+
+GRC test:
+
+![GRC test result](docs/img/grc-test.png)
+
 ## Enable HTTPS
 
 The `for_https/` Terraform creates:
