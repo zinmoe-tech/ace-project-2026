@@ -1,0 +1,6 @@
+acme_email = "your-email@example.com"
+
+# Keep these defaults unless your profile/context changed.
+aws_profile = "demo-microservices"
+aws_region  = "ap-southeast-1"
+kube_context = "arn:aws:eks:ap-southeast-1:122610519603:cluster/demo-eks-cluster"
