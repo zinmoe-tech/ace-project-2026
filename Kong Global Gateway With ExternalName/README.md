@@ -288,6 +288,8 @@ curl -i https://grc.mini-apps.click/
 
 Do not commit `terraform.tfvars` or Terraform state files.
 
+![Expected Test Results](img-source/retail.png)(br)(img-source/payments.png)(br)(img-source/grc.png)
+
 ## Useful Commands
 
 Check Gateway API status:
