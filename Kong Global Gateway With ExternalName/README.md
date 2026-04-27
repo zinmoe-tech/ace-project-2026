@@ -288,6 +288,8 @@ curl -i https://grc.mini-apps.click/
 
 Do not commit `terraform.tfvars` or Terraform state files.
 
+###Expected Test Results
+
 ![Expected Test Results](img-source/retail.png)
 ![Expected Test Results](img-source/payments.png)
 ![Expected Test Results](img-source/grc.png)
