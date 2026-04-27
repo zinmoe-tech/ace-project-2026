@@ -17,14 +17,6 @@ metadata:
   name: audit-svc
   namespace: grc-team
 ---
-# apiVersion: consul.hashicorp.com/v1alpha1
-# kind: ServiceDefaults
-# metadata:
-#   name: audit-svc
-#   namespace: grc-team
-# spec:
-#   protocol: "http"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
