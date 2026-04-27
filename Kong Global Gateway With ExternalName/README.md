@@ -20,6 +20,12 @@ Route 53
   -> Domain Kong Gateways
   -> Domain Gateway API HTTPRoutes
   -> Backend fake-service chains
+
+(img-source/flow_diagram.png)
+
+
+(img-source/traffic-flow.png)
+
 ```
 
 Current global public routes:
