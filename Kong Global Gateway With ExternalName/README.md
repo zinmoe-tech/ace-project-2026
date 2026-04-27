@@ -21,10 +21,10 @@ Route 53
   -> Domain Gateway API HTTPRoutes
   -> Backend fake-service chains
 
-(img-source/flow_diagram.png)
+![flow](img-source/flow_diagram.png)
 
 
-(img-source/traffic-flow.png)
+![flow](img-source/traffic-flow.png)
 
 ```
 
