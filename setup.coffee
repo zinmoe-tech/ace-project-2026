@@ -17,7 +17,7 @@ eksctl create cluster \
   --version 1.34 \
   --instance-types t3.medium \
   --nodes-min 3 \
-  --profile demo-microservices
+  --profile aws-profile
 
 aws eks update-kubeconfig \
   --name demo-eks-cluster \
