@@ -93,6 +93,11 @@ Client
   -> domain Kong Gateway
   -> domain HTTPRoute
   -> backend services
+
+![flow-diagram](img-source/flow_diagram.png)
+
+![flow-diagram](img-source/traffic-flow.png)
+
 ```
 
 ## Repository Layout
