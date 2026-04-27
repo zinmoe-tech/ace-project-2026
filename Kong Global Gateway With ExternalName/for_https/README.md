@@ -2,6 +2,7 @@
 
 This Terraform configuration enables trusted HTTPS for:
 
+- `https://mybank.mini-apps.click/`
 - `https://retail-banking.mini-apps.click/`
 - `https://payments.mini-apps.click/`
 - `https://grc.mini-apps.click/`
@@ -36,10 +37,12 @@ After apply:
 
 ```bash
 kubectl get gateway -A
+kubectl get secret -n global-kic
 kubectl get secret -n retail-banking-kic
 kubectl get secret -n payments-kic
 kubectl get secret -n grc-kic
 
+curl -i https://mybank.mini-apps.click/retail-banking
 curl -i https://retail-banking.mini-apps.click/
 curl -i https://payments.mini-apps.click/
 curl -i https://grc.mini-apps.click/

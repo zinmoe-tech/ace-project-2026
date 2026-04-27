@@ -33,9 +33,6 @@ spec:
     metadata:
       labels:
         app: statement-svc
-      annotations:
-        consul.hashicorp.com/connect-inject: 'true'
-        # consul.hashicorp.com/enable-metrics-merging: "false"
     spec:
       serviceAccountName: statement-svc
       containers:

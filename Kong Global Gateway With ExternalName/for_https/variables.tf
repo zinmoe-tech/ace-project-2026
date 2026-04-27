@@ -50,6 +50,14 @@ variable "domains" {
   }))
 
   default = {
+    global = {
+      hostname        = "mybank.mini-apps.click"
+      kic_namespace   = "global-kic"
+      gateway_name    = "global-kong-api-gateway"
+      gateway_class   = "global-kong-gatewayclass"
+      route_namespace = "global-api-gateway-ns"
+    }
+
     retail_banking = {
       hostname        = "retail-banking.mini-apps.click"
       kic_namespace   = "retail-banking-kic"

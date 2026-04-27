@@ -33,10 +33,6 @@ spec:
     metadata:
       labels:
         app: payment-gateway-svc
-      annotations:
-        # consul.hashicorp.com/connect-inject: 'true'
-        # consul.hashicorp.com/connect-service-upstreams: 'fx-service:9091'
-        # consul.hashicorp.com/enable-metrics-merging: "false"
     spec:
       serviceAccountName: payment-gateway-svc
       containers:
@@ -48,7 +44,6 @@ spec:
             - name: LISTEN_ADDR
               value: '0.0.0.0:9092'
             - name: UPSTREAM_URIS
-              # value: 'http://localhost:9091'
               value: 'http://fx-svc.payments-team.svc.cluster.local:7073'
             - name: NAME
               value: 'payment-gateway-svc'

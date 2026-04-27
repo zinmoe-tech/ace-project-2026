@@ -18,14 +18,6 @@ metadata:
   name: fraud-svc
   namespace: grc-team
 ---
-# apiVersion: consul.hashicorp.com/v1alpha1
-# kind: ServiceDefaults
-# metadata:
-#   name: fraud-svc
-#   namespace: grc-team
-# spec:
-#   protocol: "http"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,10 +34,6 @@ spec:
     metadata:
       labels:
         app: fraud-svc
-      annotations:
-        # consul.hashicorp.com/connect-inject: 'true'
-        # consul.hashicorp.com/connect-service-upstreams: 'audit-svc:9092'
-        # consul.hashicorp.com/enable-metrics-merging: "false"
     spec:
       serviceAccountName: fraud-svc
       containers:
@@ -57,7 +45,6 @@ spec:
             - name: LISTEN_ADDR
               value: '0.0.0.0:9091'
             - name: UPSTREAM_URIS
-              # value: 'http://localhost:9092'
               value: 'http://audit-svc.grc-team.svc.cluster.local:6062'
             - name: NAME
               value: 'fraud-svc'

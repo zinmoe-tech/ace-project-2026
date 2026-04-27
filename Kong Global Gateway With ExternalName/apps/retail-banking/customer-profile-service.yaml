@@ -42,9 +42,6 @@ spec:
     metadata:
       labels:
         app: customer-profile-svc
-      annotations:
-        consul.hashicorp.com/connect-inject: 'true'
-        # consul.hashicorp.com/connect-service-upstreams: 'account-service:9091'
     spec:
       serviceAccountName: customer-profile-svc
       containers:
@@ -56,7 +53,6 @@ spec:
             - name: LISTEN_ADDR
               value: '0.0.0.0:9091'
             - name: UPSTREAM_URIS
-              # value: 'http://localhost:9091'
               value: 'http://account-svc.retail-banking-team.svc.cluster.local:8082'
             - name: NAME
               value: 'customer-profile-svc'

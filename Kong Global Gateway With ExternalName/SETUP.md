@@ -58,7 +58,24 @@ eksctl get cluster \
 Replace `aws-profile` with your real AWS CLI profile name.
 
 ################################################################################
-# 3. Install Kong Ingress Controller instances
+# 3. Install Gateway API CRDs
+################################################################################
+
+Install the standard Gateway API CRDs:
+
+```bash
+kubectl apply --server-side \
+  -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml
+```
+
+Verify the Gateway API resources:
+
+```bash
+kubectl api-resources --api-group=gateway.networking.k8s.io
+```
+
+################################################################################
+# 4. Install Kong Ingress Controller instances
 ################################################################################
 
 Add the Kong Helm repository:
@@ -112,25 +129,6 @@ kubectl get svc -A | grep gateway-proxy
 ```
 
 The downstream proxy services shown here are the real services targeted by the `ExternalName` services in `2-downstream-proxy-services.yaml`.
-
-
-################################################################################
-# 4. Install Gateway API CRDs
-################################################################################
-
-Install the standard Gateway API CRDs:
-
-```bash
-kubectl apply --server-side \
-  -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml
-```
-
-Verify the Gateway API resources:
-
-```bash
-kubectl api-resources --api-group=gateway.networking.k8s.io
-```
-
 
 ################################################################################
 # 5. Deploy the global gateway layer
@@ -451,9 +449,18 @@ terraform apply
 Verify TLS secrets:
 
 ```bash
+kubectl get secret -n global-kic
 kubectl get secret -n retail-banking-kic
 kubectl get secret -n payments-kic
 kubectl get secret -n grc-kic
+```
+
+Test HTTPS:
+
+```bash
+curl -i https://mybank.mini-apps.click/retail-banking
+curl -i https://mybank.mini-apps.click/payments
+curl -i https://mybank.mini-apps.click/grc
 ```
 
 ################################################################################
@@ -502,4 +509,13 @@ kubectl delete -f 3-global-httproute.yaml
 kubectl delete -f 2-downstream-proxy-services.yaml
 kubectl delete -f 1-kong-api-gateway-global.yaml
 kubectl delete -f 0-gatewayclass-global.yaml
+```
+
+Uninstall Kong controller instances:
+
+```bash
+helm uninstall global-kic -n global-kic
+helm uninstall retail-banking-kic -n retail-banking-kic
+helm uninstall payments-kic -n payments-kic
+helm uninstall grc-kic -n grc-kic
 ```

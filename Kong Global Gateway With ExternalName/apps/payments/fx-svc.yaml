@@ -17,14 +17,6 @@ metadata:
   name: fx-svc
   namespace: payments-team
 ---
-# apiVersion: consul.hashicorp.com/v1alpha1
-# kind: ServiceDefaults
-# metadata:
-#   name: fx-svc
-#   namespace: payments-team
-# spec:
-#   protocol: "http"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,9 +33,6 @@ spec:
     metadata:
       labels:
         app: fx-svc
-      annotations:
-        # consul.hashicorp.com/connect-inject: 'true'
-        # consul.hashicorp.com/enable-metrics-merging: "false"
     spec:
       serviceAccountName: fx-svc
       containers:
