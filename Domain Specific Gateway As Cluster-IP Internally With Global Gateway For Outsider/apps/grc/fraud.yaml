@@ -50,8 +50,6 @@ spec:
               value: 'fraud-svc'
             - name: MESSAGE
               value: 'HelloCloudBank | GRC | fraud-svc'
-          securityContext:
-            privileged: true
           resources:
             requests:
               cpu: "100m"

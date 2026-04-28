@@ -1,0 +1,166 @@
+# Client-side mTLS rules for the internal call graph.
+# These make the caller side intentionally originate Istio mutual TLS.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-grc-kic-proxy-mtls
+  namespace: global-kic
+spec:
+  host: grc-kic-gateway-proxy.global-api-gateway-ns.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-grc-kic-proxy-target-mtls
+  namespace: global-kic
+spec:
+  host: grc-kic-gateway-proxy.grc-kic.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-payments-kic-proxy-mtls
+  namespace: global-kic
+spec:
+  host: payments-kic-gateway-proxy.global-api-gateway-ns.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-payments-kic-proxy-target-mtls
+  namespace: global-kic
+spec:
+  host: payments-kic-gateway-proxy.payments-kic.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-retail-banking-kic-proxy-mtls
+  namespace: global-kic
+spec:
+  host: retail-banking-kic-gateway-proxy.global-api-gateway-ns.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-retail-banking-kic-proxy-target-mtls
+  namespace: global-kic
+spec:
+  host: retail-banking-kic-gateway-proxy.retail-banking-kic.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: grc-kic-to-fraud-mtls
+  namespace: grc-kic
+spec:
+  host: fraud-svc.grc-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: grc-fraud-to-audit-mtls
+  namespace: grc-team
+spec:
+  host: audit-svc.grc-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: grc-audit-to-sanction-mtls
+  namespace: grc-team
+spec:
+  host: sanction-svc.grc-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: payments-kic-to-transfer-mtls
+  namespace: payments-kic
+spec:
+  host: transfer-svc.payments-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: payments-transfer-to-gateway-mtls
+  namespace: payments-team
+spec:
+  host: payment-gateway-svc.payments-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: payments-gateway-to-fx-mtls
+  namespace: payments-team
+spec:
+  host: fx-svc.payments-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: retail-kic-to-customer-profile-mtls
+  namespace: retail-banking-kic
+spec:
+  host: customer-profile-svc.retail-banking-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: retail-customer-profile-to-account-mtls
+  namespace: retail-banking-team
+spec:
+  host: account-svc.retail-banking-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: retail-account-to-statement-mtls
+  namespace: retail-banking-team
+spec:
+  host: statement-svc.retail-banking-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL

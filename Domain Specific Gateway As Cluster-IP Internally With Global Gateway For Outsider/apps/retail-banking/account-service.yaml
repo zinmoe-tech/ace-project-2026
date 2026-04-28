@@ -49,8 +49,6 @@ spec:
               value: 'account-svc'
             - name: MESSAGE
               value: 'HelloCloudBank | Retail Banking | account-svc'
-          securityContext:
-            privileged: true
           resources:
             requests:
               cpu: "100m"

@@ -47,8 +47,6 @@ spec:
               value: 'sanction-svc'
             - name: MESSAGE
               value: 'HelloCloudBank | GRC | sanction-svc'
-          securityContext:
-            privileged: true
           resources:
             requests:
               cpu: "100m"

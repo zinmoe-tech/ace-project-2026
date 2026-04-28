@@ -49,8 +49,6 @@ spec:
               value: 'payment-gateway-svc'
             - name: MESSAGE
               value: 'HelloCloudBank | Payments | payment-gateway-svc'
-          securityContext:
-            privileged: true
           resources:
             requests:
               cpu: "100m"

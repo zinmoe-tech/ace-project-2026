@@ -49,8 +49,6 @@ spec:
               value: 'audit-svc'
             - name: MESSAGE
               value: 'HelloCloudBank | GRC | audit-svc'
-          securityContext:
-            privileged: true
           resources:
             requests:
               cpu: "100m"

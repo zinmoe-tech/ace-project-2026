@@ -1,10 +1,10 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: grc-kong-api-gateway
-  namespace: grc-kic
+  name: global-kong-api-gateway
+  namespace: global-kic
 spec:
-  gatewayClassName: grc-kong-gatewayclass
+  gatewayClassName: global-kong-gatewayclass
   listeners:
   - protocol: HTTP
     port: 80
@@ -14,4 +14,4 @@ spec:
         from: Selector
         selector:
           matchLabels:
-            kubernetes.io/metadata.name: grc-team
+            kubernetes.io/metadata.name: global-api-gateway-ns

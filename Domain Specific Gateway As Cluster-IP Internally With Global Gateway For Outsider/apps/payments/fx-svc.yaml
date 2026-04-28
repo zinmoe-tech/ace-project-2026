@@ -47,8 +47,6 @@ spec:
               value: 'fx-svc'
             - name: MESSAGE
               value: 'HelloCloudBank | Payments | fx-svc'
-          securityContext:
-            privileged: true
           resources:
             requests:
               cpu: "100m"

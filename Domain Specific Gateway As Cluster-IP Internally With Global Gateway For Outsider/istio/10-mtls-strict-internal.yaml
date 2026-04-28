@@ -1,0 +1,56 @@
+# Apply this after all Kong and application pods have Istio sidecars.
+# global-kic is intentionally left PERMISSIVE so public HTTPS clients can reach
+# the edge gateway without presenting an Istio workload certificate.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: grc-kic-mtls-strict
+  namespace: grc-kic
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: grc-team-mtls-strict
+  namespace: grc-team
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: payments-kic-mtls-strict
+  namespace: payments-kic
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: payments-team-mtls-strict
+  namespace: payments-team
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: retail-banking-kic-mtls-strict
+  namespace: retail-banking-kic
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: retail-banking-team-mtls-strict
+  namespace: retail-banking-team
+spec:
+  mtls:
+    mode: STRICT

@@ -50,8 +50,6 @@ spec:
               value: 'transfer-svc'
             - name: MESSAGE
               value: 'HelloCloudBank | Payments | transfer-svc'
-          securityContext:
-            privileged: true
           resources:
             requests:
               cpu: "100m"
