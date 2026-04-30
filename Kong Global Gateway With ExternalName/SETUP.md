@@ -12,6 +12,7 @@ Make sure these are already installed and configured:
 - `eksctl`.
 - `kubectl`.
 - `helm`.
+- `istioctl`.
 - An AWS profile that can create and manage EKS resources.
 - DNS access for `mini-apps.click`.
 
@@ -75,7 +76,47 @@ kubectl api-resources --api-group=gateway.networking.k8s.io
 ```
 
 ################################################################################
-# 4. Install Kong Ingress Controller instances
+# 4. Install Istio and prepare mesh namespaces
+################################################################################
+
+Install Istio before creating the Kong and application pods:
+
+```bash
+istioctl install --set profile=default -y
+kubectl get pods -n istio-system
+```
+
+Sidecar injection is already enabled via the `istio-injection: enabled` label
+in the namespace manifests. Apply them now so that every pod created afterwards
+receives an Envoy sidecar automatically:
+
+```bash
+kubectl apply -f 1-kong-api-gateway-global.yaml
+kubectl apply -f apps/retail-banking/01-retail-banking-kong-api-gateway.yaml
+kubectl apply -f apps/retail-banking/customer-profile-service.yaml
+kubectl apply -f apps/payments/01-payments-kong-api-gateway.yaml
+kubectl apply -f apps/payments/payments-ns.yaml
+kubectl apply -f apps/grc/01-grc-kong-api-gateway.yaml
+kubectl apply -f apps/grc/grc-ns.yaml
+```
+
+These namespaces run pods and are part of the mTLS mesh:
+
+```text
+global-kic
+retail-banking-kic
+retail-banking-team
+payments-kic
+payments-team
+grc-kic
+grc-team
+```
+
+The `global-api-gateway-ns` namespace has no pods (only `ExternalName` services
+and `HTTPRoute` objects) and is intentionally not labeled for injection.
+
+################################################################################
+# 5. Install Kong Ingress Controller instances
 ################################################################################
 
 Add the Kong Helm repository:
@@ -131,7 +172,7 @@ kubectl get svc -A | grep gateway-proxy
 The downstream proxy services shown here are the real services targeted by the `ExternalName` services in `2-downstream-proxy-services.yaml`.
 
 ################################################################################
-# 5. Deploy the global gateway layer
+# 6. Deploy the global gateway layer
 ################################################################################
 
 Apply the global GatewayClass:
@@ -168,7 +209,7 @@ kubectl get svc -n global-api-gateway-ns
 ```
 
 ################################################################################
-# 6. Deploy Retail Banking
+# 7. Deploy Retail Banking
 ################################################################################
 
 Apply the Retail Banking GatewayClass and Gateway:
@@ -201,7 +242,7 @@ kubectl get pods,svc -n retail-banking-team
 ```
 
 ################################################################################
-# 7. Deploy Payments
+# 8. Deploy Payments
 ################################################################################
 
 Apply the Payments application namespace:
@@ -240,7 +281,7 @@ kubectl get pods,svc -n payments-team
 ```
 
 ################################################################################
-# 8. Deploy GRC
+# 9. Deploy GRC
 ################################################################################
 
 Apply the GRC application namespace:
@@ -279,7 +320,110 @@ kubectl get pods,svc -n grc-team
 ```
 
 ################################################################################
-# 9. Configure DNS
+# 10. Enable Istio mTLS
+################################################################################
+
+Rollout is two phases: PERMISSIVE first so you can confirm sidecars are running,
+then STRICT to enforce encryption on every in-cluster hop.
+
+## Phase 1 – PERMISSIVE mode + DestinationRules
+
+Apply mesh-wide PERMISSIVE mode. This allows both plaintext and mTLS while you
+confirm every workload has a sidecar:
+
+```bash
+kubectl apply -f istio/00-mtls-permissive.yaml
+```
+
+Apply the DestinationRules. These tell each caller's Envoy sidecar to originate
+Istio mTLS for every downstream host — covering all three hops:
+Global Kong → domain KIC → first service → service chain.
+
+```bash
+kubectl apply -f istio/05-destinationrules-istio-mutual.yaml
+```
+
+## Verify sidecar injection
+
+Check that every pod in the mesh namespaces has an `istio-proxy` container:
+
+```bash
+kubectl get pods -n global-kic -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+kubectl get pods -n retail-banking-kic -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+kubectl get pods -n retail-banking-team -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+kubectl get pods -n payments-kic -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+kubectl get pods -n payments-team -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+kubectl get pods -n grc-kic -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+kubectl get pods -n grc-team -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+```
+
+Each pod must list its application container **and** `istio-proxy`. If any pod
+is missing the sidecar (deployed before the namespace was labeled), restart it:
+
+```bash
+kubectl rollout restart deployment -n global-kic
+kubectl rollout restart deployment -n retail-banking-kic
+kubectl rollout restart deployment -n retail-banking-team
+kubectl rollout restart deployment -n payments-kic
+kubectl rollout restart deployment -n payments-team
+kubectl rollout restart deployment -n grc-kic
+kubectl rollout restart deployment -n grc-team
+```
+
+Confirm traffic still works in PERMISSIVE mode before proceeding:
+
+```bash
+GLOBAL_LB=$(kubectl get svc -n global-kic global-kic-gateway-proxy \
+  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/retail-banking"
+curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/payments"
+curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/grc"
+```
+
+## Phase 2 – STRICT mode
+
+Once all pods show an `istio-proxy` sidecar and the routes work, enforce STRICT
+mTLS for all internal namespaces. This blocks any plaintext connection to the
+domain KIC and app pods:
+
+```bash
+kubectl apply -f istio/10-mtls-strict-internal.yaml
+```
+
+`global-kic` is intentionally left at mesh-wide PERMISSIVE so public HTTPS
+clients can reach the edge gateway. All traffic *leaving* `global-kic` is still
+mTLS via the DestinationRules.
+
+Validate again after switching to STRICT:
+
+```bash
+curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/retail-banking"
+curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/payments"
+curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/grc"
+```
+
+Expected result:
+- Public client → Global Kong: normal HTTP/HTTPS edge traffic.
+- Global Kong → domain KIC proxy: Istio mTLS (DestinationRule ISTIO_MUTUAL).
+- Domain KIC → backend services: Istio mTLS.
+- Service-to-service inside each domain: Istio mTLS.
+- Plaintext direct calls to STRICT internal workloads: blocked (connection reset).
+
+## Roll back STRICT mode
+
+If STRICT mode exposes a workload without a sidecar, return to PERMISSIVE:
+
+```bash
+kubectl delete -f istio/10-mtls-strict-internal.yaml --ignore-not-found
+kubectl apply -f istio/00-mtls-permissive.yaml
+kubectl apply -f istio/05-destinationrules-istio-mutual.yaml
+```
+
+Fix sidecar injection for the affected pod, then retry STRICT mode.
+
+################################################################################
+# 11. Configure DNS
 ################################################################################
 
 Find the external address of the global Kong Gateway proxy service:
@@ -345,7 +489,7 @@ grc.mini-apps.click            -> grc Kong Gateway load balancer
 ```
 
 ################################################################################
-# 10. Test the global gateway
+# 12. Test the global gateway
 ################################################################################
 
 Test Retail Banking:
@@ -379,7 +523,7 @@ Client
 ```
 
 ################################################################################
-# 11. Useful troubleshooting commands
+# 13. Useful troubleshooting commands
 ################################################################################
 
 Check all gateways:
@@ -423,8 +567,26 @@ kubectl logs -n payments-team deploy/transfer-svc
 kubectl logs -n grc-team deploy/fraud-svc
 ```
 
+Check Istio mTLS policies:
+
+```bash
+kubectl get peerauthentication -A
+kubectl describe peerauthentication default -n retail-banking-team
+kubectl describe peerauthentication default -n payments-team
+kubectl describe peerauthentication default -n grc-team
+```
+
+Check sidecars:
+
+```bash
+kubectl get pods -n global-kic -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+kubectl get pods -n retail-banking-kic -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+kubectl get pods -n payments-kic -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+kubectl get pods -n grc-kic -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[*].name}{"\n"}{end}'
+```
+
 ################################################################################
-# 12. Optional HTTPS setup
+# 14. Optional HTTPS setup
 ################################################################################
 
 The `for_https` directory contains Terraform files for Let's Encrypt certificates and HTTPS listeners.
@@ -464,8 +626,16 @@ curl -i https://mybank.mini-apps.click/grc
 ```
 
 ################################################################################
-# 13. Cleanup
+# 15. Cleanup
 ################################################################################
+
+Delete Istio mTLS policies:
+
+```bash
+kubectl delete -f istio/10-mtls-strict-internal.yaml --ignore-not-found
+kubectl delete -f istio/05-destinationrules-istio-mutual.yaml --ignore-not-found
+kubectl delete -f istio/00-mtls-permissive.yaml --ignore-not-found
+```
 
 Delete GRC resources:
 

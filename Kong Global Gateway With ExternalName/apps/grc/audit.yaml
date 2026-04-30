@@ -8,7 +8,8 @@ spec:
   selector:
     app: audit-svc
   ports:
-    - port: 6062
+    - name: http
+      port: 6062
       targetPort: 9092
 ---
 apiVersion: v1

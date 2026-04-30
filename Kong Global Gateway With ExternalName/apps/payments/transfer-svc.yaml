@@ -9,7 +9,8 @@ spec:
   selector:
     app: transfer-svc
   ports:
-    - port: 7071
+    - name: http
+      port: 7071
       targetPort: 9091
 ---
 apiVersion: v1

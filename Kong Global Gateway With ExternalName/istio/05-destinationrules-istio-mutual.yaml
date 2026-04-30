@@ -1,0 +1,185 @@
+# Client-side mTLS rules for every hop in the call graph.
+# DestinationRules live in the *caller's* namespace and tell the Envoy sidecar
+# to originate Istio mutual TLS for that specific host.
+#
+# Hop 1: Global Kong proxy  →  ExternalName alias  →  domain KIC proxy
+#   Kong resolves the ExternalName FQDN; Istio sees both the alias and the
+#   real target, so both need a DestinationRule in global-kic.
+#
+# Hop 2: Domain KIC proxy  →  first backend service in the domain
+#
+# Hop 3+: Service-to-service chain inside each domain namespace
+
+# ── Global KIC → Retail Banking ─────────────────────────────────────────────
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-retail-banking-kic-proxy-externalname-mtls
+  namespace: global-kic
+spec:
+  host: retail-banking-kic-gateway-proxy.global-api-gateway-ns.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-retail-banking-kic-proxy-target-mtls
+  namespace: global-kic
+spec:
+  host: retail-banking-kic-gateway-proxy.retail-banking-kic.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+# ── Global KIC → Payments ────────────────────────────────────────────────────
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-payments-kic-proxy-externalname-mtls
+  namespace: global-kic
+spec:
+  host: payments-kic-gateway-proxy.global-api-gateway-ns.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-payments-kic-proxy-target-mtls
+  namespace: global-kic
+spec:
+  host: payments-kic-gateway-proxy.payments-kic.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+# ── Global KIC → GRC ─────────────────────────────────────────────────────────
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-grc-kic-proxy-externalname-mtls
+  namespace: global-kic
+spec:
+  host: grc-kic-gateway-proxy.global-api-gateway-ns.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: global-to-grc-kic-proxy-target-mtls
+  namespace: global-kic
+spec:
+  host: grc-kic-gateway-proxy.grc-kic.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+# ── Retail Banking KIC → customer-profile-svc ────────────────────────────────
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: retail-kic-to-customer-profile-mtls
+  namespace: retail-banking-kic
+spec:
+  host: customer-profile-svc.retail-banking-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+# ── Retail Banking service chain ─────────────────────────────────────────────
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: retail-customer-profile-to-account-mtls
+  namespace: retail-banking-team
+spec:
+  host: account-svc.retail-banking-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: retail-account-to-statement-mtls
+  namespace: retail-banking-team
+spec:
+  host: statement-svc.retail-banking-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+# ── Payments KIC → transfer-svc ──────────────────────────────────────────────
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: payments-kic-to-transfer-mtls
+  namespace: payments-kic
+spec:
+  host: transfer-svc.payments-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+# ── Payments service chain ────────────────────────────────────────────────────
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: payments-transfer-to-gateway-mtls
+  namespace: payments-team
+spec:
+  host: payment-gateway-svc.payments-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: payments-gateway-to-fx-mtls
+  namespace: payments-team
+spec:
+  host: fx-svc.payments-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+# ── GRC KIC → fraud-svc ──────────────────────────────────────────────────────
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: grc-kic-to-fraud-mtls
+  namespace: grc-kic
+spec:
+  host: fraud-svc.grc-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+# ── GRC service chain ─────────────────────────────────────────────────────────
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: grc-fraud-to-audit-mtls
+  namespace: grc-team
+spec:
+  host: audit-svc.grc-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: grc-audit-to-sanction-mtls
+  namespace: grc-team
+spec:
+  host: sanction-svc.grc-team.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL

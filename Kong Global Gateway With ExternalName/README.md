@@ -105,6 +105,7 @@ Client
 │   ├── payments/              # Payments gateway, route, and services
 │   └── grc/                   # GRC gateway, route, and services
 ├── for_https/                 # Terraform for certificates and HTTPS listeners
+├── istio/                     # Sidecar injection namespaces and STRICT mTLS
 ├── SETUP.md                   # Step-by-step deployment runbook
 └── README.md
 ```
@@ -184,12 +185,25 @@ fraud-svc
   -> sanction-svc
 ```
 
+### Istio mTLS
+
+The `istio/` directory adds Istio sidecar injection labels for the Kong and application namespaces, then applies namespace-wide `PeerAuthentication` resources with `mtls.mode: STRICT`.
+
+This protects in-cluster traffic across:
+
+- Global Kong Gateway to downstream domain Kong gateways.
+- Domain Kong gateways to the domain entry services.
+- Microservice-to-microservice calls inside Retail Banking, Payments, and GRC.
+
+Install Istio and apply `istio/00-mesh-namespaces.yaml` before installing Kong and the application workloads so new pods receive an `istio-proxy` sidecar. Apply `istio/01-strict-mtls.yaml` after the pods are meshed.
+
 ## Prerequisites
 
 - AWS CLI with a profile that can manage EKS and Route 53.
 - `eksctl`
 - `kubectl`
 - `helm`
+- `istioctl`, for Istio sidecar mTLS
 - Gateway API CRDs
 - Kong Helm chart repository
 - Route 53 public hosted zone for `mini-apps.click`
@@ -203,14 +217,16 @@ Summary:
 
 1. Create or connect to the EKS cluster.
 2. Install Gateway API CRDs.
-3. Install Kong Ingress Controller instances.
-4. Apply global GatewayClass, Gateway, `ExternalName` services, and global HTTPRoute.
-5. Apply domain GatewayClass and Gateway manifests.
-6. Deploy backend services.
-7. Apply domain HTTPRoutes.
-8. Create Route 53 records for `mybank.mini-apps.click` and any direct domain hostnames.
-9. Enable HTTPS with Terraform.
-10. Test global and downstream access.
+3. Install Istio and prepare the meshed namespaces.
+4. Install Kong Ingress Controller instances.
+5. Apply global GatewayClass, Gateway, `ExternalName` services, and global HTTPRoute.
+6. Apply domain GatewayClass and Gateway manifests.
+7. Deploy backend services.
+8. Apply domain HTTPRoutes.
+9. Apply Istio STRICT mTLS policies.
+10. Create Route 53 records for `mybank.mini-apps.click` and any direct domain hostnames.
+11. Enable HTTPS with Terraform.
+12. Test global and downstream access.
 
 ## Test Global HTTPS
 

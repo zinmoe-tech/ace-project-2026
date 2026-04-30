@@ -8,7 +8,8 @@ spec:
   selector:
     app: fx-svc
   ports:
-    - port: 7073
+    - name: http
+      port: 7073
       targetPort: 9093
 ---
 apiVersion: v1

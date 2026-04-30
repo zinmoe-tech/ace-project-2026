@@ -9,7 +9,8 @@ spec:
   selector:
     app: fraud-svc
   ports:
-    - port: 6061
+    - name: http
+      port: 6061
       targetPort: 9091
 ---
 apiVersion: v1

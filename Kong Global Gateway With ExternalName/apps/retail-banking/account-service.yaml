@@ -8,7 +8,8 @@ spec:
   selector:
     app: account-svc
   ports:
-    - port: 8082
+    - name: http
+      port: 8082
       targetPort: 9092
 ---
 apiVersion: v1
