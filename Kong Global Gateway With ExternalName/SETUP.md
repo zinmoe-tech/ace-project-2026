@@ -79,28 +79,95 @@ kubectl api-resources --api-group=gateway.networking.k8s.io
 # 4. Install Istio and prepare mesh namespaces
 ################################################################################
 
-Install Istio before creating the Kong and application pods:
+Install Istio before creating the Kong and application pods. This section
+covers downloading istioctl, installing the Istio control plane on EKS, and
+labeling namespaces for sidecar injection.
+
+## 4a. Install istioctl
+
+Download and install the istioctl binary. Version 1.22 is tested with
+Kubernetes 1.28–1.34.
+
+```bash
+curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.22.0 sh -
+```
+
+Move the binary to a directory on your PATH:
+
+```bash
+sudo mv istio-1.22.0/bin/istioctl /usr/local/bin/
+rm -rf istio-1.22.0
+```
+
+Verify the installation:
+
+```bash
+istioctl version --remote=false
+```
+
+## 4b. Pre-flight check for EKS
+
+Validate that the cluster meets Istio requirements before installing:
+
+```bash
+istioctl x precheck
+```
+
+All checks must pass. Common EKS-specific issues and fixes:
+
+- **CNI**: EKS uses `amazon-vpc-cni`, which Istio supports natively. No extra
+  action needed.
+- **Node count**: At least 3 nodes are required to schedule istiod with its
+  default anti-affinity. The cluster is created with `--nodes-min 3` so this
+  is already satisfied.
+- **API server**: Make sure `kubectl get nodes` shows all nodes in `Ready`
+  state before proceeding.
+
+## 4c. Install Istio on EKS
+
+Install Istio using the `default` profile. This deploys the `istiod` control
+plane and an `istio-ingressgateway` LoadBalancer. The ingress gateway is not
+used by this project (Kong handles all public ingress), but the `default`
+profile is the safest baseline for production use.
 
 ```bash
 istioctl install --set profile=default -y
+```
+
+Wait for `istiod` and the ingress gateway to be ready:
+
+```bash
+kubectl rollout status deployment/istiod -n istio-system
+kubectl rollout status deployment/istio-ingressgateway -n istio-system
 kubectl get pods -n istio-system
 ```
 
-Sidecar injection is already enabled via the `istio-injection: enabled` label
-in the namespace manifests. Apply them now so that every pod created afterwards
-receives an Envoy sidecar automatically:
+Expected output — all pods should be `Running` and `READY 1/1`:
 
-```bash
-kubectl apply -f 1-kong-api-gateway-global.yaml
-kubectl apply -f apps/retail-banking/01-retail-banking-kong-api-gateway.yaml
-kubectl apply -f apps/retail-banking/customer-profile-service.yaml
-kubectl apply -f apps/payments/01-payments-kong-api-gateway.yaml
-kubectl apply -f apps/payments/payments-ns.yaml
-kubectl apply -f apps/grc/01-grc-kong-api-gateway.yaml
-kubectl apply -f apps/grc/grc-ns.yaml
+```text
+NAME                                    READY   STATUS    RESTARTS   AGE
+istio-ingressgateway-xxxxxxxxx-xxxxx    1/1     Running   0          2m
+istiod-xxxxxxxxx-xxxxx                  1/1     Running   0          2m
 ```
 
-These namespaces run pods and are part of the mTLS mesh:
+Verify the Istio control plane version matches what was installed:
+
+```bash
+istioctl version
+```
+
+## 4d. Label mesh namespaces and enable sidecar injection
+
+Sidecar injection is controlled by the `istio-injection: enabled` label on
+each namespace. Apply the namespace manifests now so that every Kong and
+application pod created in later steps automatically receives an Envoy
+sidecar:
+
+```bash
+kubectl apply -f istio/00-mesh-namespaces.yaml
+```
+
+This creates (or patches) the following namespaces with the injection label:
 
 ```text
 global-kic
@@ -112,8 +179,32 @@ grc-kic
 grc-team
 ```
 
+Confirm the label is present on each namespace:
+
+```bash
+kubectl get namespace -L istio-injection | grep enabled
+```
+
+All seven namespaces listed above must appear in the output.
+
 The `global-api-gateway-ns` namespace has no pods (only `ExternalName` services
 and `HTTPRoute` objects) and is intentionally not labeled for injection.
+
+## 4e. Apply namespace manifests for Kong and applications
+
+These manifests define the namespaces referenced by the Kong Helm installs
+and application deployments in later steps. Applying them now (before Helm
+installs) ensures every pod gets an Envoy sidecar from the moment it starts:
+
+```bash
+kubectl apply -f 1-kong-api-gateway-global.yaml
+kubectl apply -f apps/retail-banking/01-retail-banking-kong-api-gateway.yaml
+kubectl apply -f apps/retail-banking/customer-profile-service.yaml
+kubectl apply -f apps/payments/01-payments-kong-api-gateway.yaml
+kubectl apply -f apps/payments/payments-ns.yaml
+kubectl apply -f apps/grc/01-grc-kong-api-gateway.yaml
+kubectl apply -f apps/grc/grc-ns.yaml
+```
 
 ################################################################################
 # 5. Install Kong Ingress Controller instances
@@ -169,7 +260,7 @@ kubectl get pods -A | grep kic
 kubectl get svc -A | grep gateway-proxy
 ```
 
-The downstream proxy services shown here are the real services targeted by the `ExternalName` services in `2-downstream-proxy-services.yaml`.
+The downstream proxy services shown here are the real services targeted by the `ExternalName` services in `3-downstream-proxy-services.yaml`.
 
 ################################################################################
 # 6. Deploy the global gateway layer
@@ -190,13 +281,13 @@ kubectl apply -f 1-kong-api-gateway-global.yaml
 Apply the `ExternalName` services. These services point the global route to each downstream Kong proxy service:
 
 ```bash
-kubectl apply -f 2-downstream-proxy-services.yaml
+kubectl apply -f 3-downstream-proxy-services.yaml
 ```
 
 Apply the global HTTPRoute:
 
 ```bash
-kubectl apply -f 3-global-httproute.yaml
+kubectl apply -f 2-global-httproute.yaml
 ```
 
 Verify:
@@ -675,8 +766,8 @@ kubectl delete -f apps/retail-banking/00-retail-banking-gatewayclass.yaml
 Delete global resources:
 
 ```bash
-kubectl delete -f 3-global-httproute.yaml
-kubectl delete -f 2-downstream-proxy-services.yaml
+kubectl delete -f 2-global-httproute.yaml
+kubectl delete -f 3-downstream-proxy-services.yaml
 kubectl delete -f 1-kong-api-gateway-global.yaml
 kubectl delete -f 0-gatewayclass-global.yaml
 ```
