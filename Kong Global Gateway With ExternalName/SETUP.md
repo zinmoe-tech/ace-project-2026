@@ -417,21 +417,21 @@ kubectl get pods,svc -n grc-team
 Rollout is two phases: PERMISSIVE first so you can confirm sidecars are running,
 then STRICT to enforce encryption on every in-cluster hop.
 
-## Phase 1 – PERMISSIVE mode + DestinationRules
+## Phase 1 - PERMISSIVE mode + DestinationRules
 
 Apply mesh-wide PERMISSIVE mode. This allows both plaintext and mTLS while you
 confirm every workload has a sidecar:
 
 ```bash
-kubectl apply -f istio/00-mtls-permissive.yaml
+kubectl apply -f istio/01-mtls-permissive-client-in.yaml
 ```
 
 Apply the DestinationRules. These tell each caller's Envoy sidecar to originate
-Istio mTLS for every downstream host — covering all three hops:
-Global Kong → domain KIC → first service → service chain.
+Istio mTLS for every downstream host, covering all three hops:
+Global Kong -> domain KIC -> first service -> service chain.
 
 ```bash
-kubectl apply -f istio/05-destinationrules-istio-mutual.yaml
+kubectl apply -f istio/03-destinationrules-istio-mutual.yaml
 ```
 
 ## Verify sidecar injection
@@ -472,14 +472,14 @@ curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/payments"
 curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/grc"
 ```
 
-## Phase 2 – STRICT mode
+## Phase 2 - STRICT mode
 
 Once all pods show an `istio-proxy` sidecar and the routes work, enforce STRICT
 mTLS for all internal namespaces. This blocks any plaintext connection to the
 domain KIC and app pods:
 
 ```bash
-kubectl apply -f istio/10-mtls-strict-internal.yaml
+kubectl apply -f istio/02-mtls-strict-internal.yaml
 ```
 
 `global-kic` is intentionally left at mesh-wide PERMISSIVE so public HTTPS
@@ -495,9 +495,9 @@ curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/grc"
 ```
 
 Expected result:
-- Public client → Global Kong: normal HTTP/HTTPS edge traffic.
-- Global Kong → domain KIC proxy: Istio mTLS (DestinationRule ISTIO_MUTUAL).
-- Domain KIC → backend services: Istio mTLS.
+- Public client -> Global Kong: normal HTTP/HTTPS edge traffic.
+- Global Kong -> domain KIC proxy: Istio mTLS (DestinationRule ISTIO_MUTUAL).
+- Domain KIC -> backend services: Istio mTLS.
 - Service-to-service inside each domain: Istio mTLS.
 - Plaintext direct calls to STRICT internal workloads: blocked (connection reset).
 
@@ -506,9 +506,9 @@ Expected result:
 If STRICT mode exposes a workload without a sidecar, return to PERMISSIVE:
 
 ```bash
-kubectl delete -f istio/10-mtls-strict-internal.yaml --ignore-not-found
-kubectl apply -f istio/00-mtls-permissive.yaml
-kubectl apply -f istio/05-destinationrules-istio-mutual.yaml
+kubectl delete -f istio/02-mtls-strict-internal.yaml --ignore-not-found
+kubectl apply -f istio/01-mtls-permissive-client-in.yaml
+kubectl apply -f istio/03-destinationrules-istio-mutual.yaml
 ```
 
 Fix sidecar injection for the affected pod, then retry STRICT mode.
@@ -723,9 +723,9 @@ curl -i https://mybank.mini-apps.click/grc
 Delete Istio mTLS policies:
 
 ```bash
-kubectl delete -f istio/10-mtls-strict-internal.yaml --ignore-not-found
-kubectl delete -f istio/05-destinationrules-istio-mutual.yaml --ignore-not-found
-kubectl delete -f istio/00-mtls-permissive.yaml --ignore-not-found
+kubectl delete -f istio/02-mtls-strict-internal.yaml --ignore-not-found
+kubectl delete -f istio/03-destinationrules-istio-mutual.yaml --ignore-not-found
+kubectl delete -f istio/01-mtls-permissive-client-in.yaml --ignore-not-found
 ```
 
 Delete GRC resources:

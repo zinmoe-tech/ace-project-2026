@@ -1,74 +1,67 @@
-# Kong Distributed API Gateway on EKS with HTTPS and ExternalName
+# Kong Global Gateway With ExternalName
 
-Production-style distributed API gateway reference project for Amazon EKS using Kong Ingress Controller, Kubernetes Gateway API, Route 53, Kubernetes `ExternalName` services, and optional HTTPS automation with Terraform.
+Interview-ready reference project for a distributed API gateway pattern on Amazon EKS.
 
-The project models a banking platform with three business domains:
+This project shows how one public banking gateway can route traffic to multiple domain-owned Kong gateways while keeping east-west traffic inside the Kubernetes cluster. It uses Kong Ingress Controller, Kubernetes Gateway API, `ExternalName` services, Route 53 DNS, optional Terraform-managed HTTPS, and optional Istio mTLS for in-cluster encryption.
 
-- Retail Banking
-- Payments
-- GRC, Governance Risk and Compliance
+## 60 Second Interview Summary
 
-Each domain owns its own Kong Gateway, route, namespace, and backend service chain. The repo also includes a global gateway layer that sits in front of the domain gateways for centralized path-based routing through `mybank.mini-apps.click`.
+I built a production-style API gateway topology for a banking platform with three independent business domains: Retail Banking, Payments, and GRC.
 
-## What This Project Builds
+The key idea is a two-tier gateway model:
 
-```text
-Route 53
-  -> Global Kong Gateway
-  -> Global Gateway API HTTPRoute
-  -> ExternalName Services
-  -> Domain Kong Gateways
-  -> Domain Gateway API HTTPRoutes
-  -> Backend fake-service chains
-```
+- The Global Kong Gateway owns the customer-facing hostname: `mybank.mini-apps.click`.
+- Each domain owns its own Kong Gateway, namespace, Gateway API resources, and backend services.
+- The global gateway routes `/retail-banking`, `/payments`, and `/grc` to the correct domain gateway.
+- Instead of sending traffic out to public load balancers and back in again, the global route uses Kubernetes `ExternalName` services that point directly to the internal Kong proxy services.
+- Istio can then secure the internal hops with mutual TLS while Kong remains the public API entry point.
 
-Current global public routes:
+This demonstrates API gateway federation, domain isolation, Gateway API routing, internal service discovery, TLS termination, and service mesh security in one small but realistic EKS project.
 
-| Domain | Global URL | Entry service | Service chain |
-| --- | --- | --- | --- |
-| Retail Banking | `https://mybank.mini-apps.click/retail-banking` | `customer-profile-svc` | `customer-profile-svc -> account-svc -> statement-svc` |
-| Payments | `https://mybank.mini-apps.click/payments` | `transfer-svc` | `transfer-svc -> payment-gateway-svc -> fx-svc` |
-| GRC | `https://mybank.mini-apps.click/grc` | `fraud-svc` | `fraud-svc -> audit-svc -> sanction-svc` |
+## Problem This Solves
 
-Current downstream domain routes:
+In larger organizations, one central API team often needs a single public entry point, while domain teams still need ownership of their routes and release cycles.
 
-| Domain | Public URL | Entry service |
-| --- | --- | --- |
-| Retail Banking | `https://retail-banking.mini-apps.click/` | `customer-profile-svc` |
-| Payments | `https://payments.mini-apps.click/` | `transfer-svc` |
-| GRC | `https://grc.mini-apps.click/` | `fraud-svc` |
+This project models that setup:
+
+- Platform team owns the global gateway and public DNS.
+- Domain teams own their own gateways, routes, namespaces, and services.
+- Traffic between gateways stays private inside the cluster.
+- Security teams can enforce in-cluster mTLS without exposing Istio directly at the public edge.
+- Interviewers can inspect each manifest and see clear ownership boundaries.
 
 ## Architecture
 
-High-level global gateway flow:
+```text
+Client
+  -> Route 53: mybank.mini-apps.click
+  -> Global Kong Gateway
+  -> Global HTTPRoute
+  -> ExternalName service in global-api-gateway-ns
+  -> Domain Kong proxy Service inside the cluster
+  -> Domain Kong Gateway
+  -> Domain HTTPRoute
+  -> Backend service chain
+```
 
 ```mermaid
 flowchart LR
     client[Client]
-    dns[Route 53<br/>mybank.mini-apps.click]
+    dns[Route 53 DNS]
+    globalGw[Global Kong Gateway]
+    globalRoute[global-httproute]
 
-    subgraph eks[Amazon EKS]
-        globalGw[Global Kong Gateway]
-        globalRoute[global-httproute]
+    rbAlias[ExternalName: retail-banking]
+    payAlias[ExternalName: payments]
+    grcAlias[ExternalName: grc]
 
-        subgraph aliases[global-api-gateway-ns]
-            rbAlias[retail-banking ExternalName]
-            payAlias[payments ExternalName]
-            grcAlias[grc ExternalName]
-        end
+    rbGw[Retail Banking Kong Gateway]
+    payGw[Payments Kong Gateway]
+    grcGw[GRC Kong Gateway]
 
-        subgraph kic[Domain Kong Gateway Tier]
-            rbGw[retail-banking Gateway]
-            payGw[payments Gateway]
-            grcGw[grc Gateway]
-        end
-
-        subgraph apps[Backend Service Tier]
-            rbSvc[customer-profile -> account -> statement]
-            paySvc[transfer -> payment-gateway -> fx]
-            grcSvc[fraud -> audit -> sanction]
-        end
-    end
+    rbSvc[customer-profile -> account -> statement]
+    paySvc[transfer -> payment-gateway -> fx]
+    grcSvc[fraud -> audit -> sanction]
 
     client --> dns --> globalGw --> globalRoute
     globalRoute -->|/retail-banking| rbAlias --> rbGw --> rbSvc
@@ -76,193 +69,29 @@ flowchart LR
     globalRoute -->|/grc| grcAlias --> grcGw --> grcSvc
 ```
 
-Detailed flow:
+![High-level flow](img-source/flow_diagram.png)
 
-```text
-Client
-  -> Global Kong Gateway
-  -> global HTTPRoute
-  -> ExternalName service in global-api-gateway-ns
-  -> downstream KIC gateway proxy Service
-  -> domain Kong Gateway
-  -> domain HTTPRoute
-  -> backend services
-```
-![flow](img-source/flow_diagram.png)
+![Traffic flow](img-source/traffic-flow.png)
 
-![flow](img-source/traffic-flow.png)
+## Public Routes
 
-## Repository Layout
+| Business domain | Global URL | Domain hostname | Entry service |
+| --- | --- | --- | --- |
+| Retail Banking | `https://mybank.mini-apps.click/retail-banking` | `retail-banking.mini-apps.click` | `customer-profile-svc` |
+| Payments | `https://mybank.mini-apps.click/payments` | `payments.mini-apps.click` | `transfer-svc` |
+| GRC | `https://mybank.mini-apps.click/grc` | `grc.mini-apps.click` | `fraud-svc` |
 
-```text
-.
-├── 0-gatewayclass-global.yaml
-├── 1-kong-api-gateway-global.yaml
-├── 2-downstream-proxy-services.yaml
-├── 3-global-httproute.yaml
-├── apps/
-│   ├── retail-banking/        # Retail gateway, route, and services
-│   ├── payments/              # Payments gateway, route, and services
-│   └── grc/                   # GRC gateway, route, and services
-├── for_https/                 # Terraform for certificates and HTTPS listeners
-├── istio/                     # Sidecar injection namespaces and STRICT mTLS
-├── SETUP.md                   # Step-by-step deployment runbook
-└── README.md
-```
+## Service Chains
 
-## Main Components
+The backend workloads use `nicholasjackson/fake-service` so every response shows the full upstream call chain.
 
-### Global Gateway
-
-The global gateway receives traffic for:
-
-```text
-mybank.mini-apps.click
-```
-
-It routes by path prefix:
-
-- `/retail-banking`
-- `/payments`
-- `/grc`
-
-The global route uses `URLRewrite` to strip the domain path prefix and set the downstream hostname before forwarding traffic to the domain gateway proxy.
-
-### ExternalName Services
-
-The global `HTTPRoute` backend references local services in `global-api-gateway-ns`.
-
-Those services are `ExternalName` aliases that point to the downstream Kong proxy services:
-
-| ExternalName service | Target |
+| Domain | Chain |
 | --- | --- |
-| `retail-banking-kic-gateway-proxy` | `retail-banking-kic-gateway-proxy.retail-banking-kic.svc.cluster.local` |
-| `payments-kic-gateway-proxy` | `payments-kic-gateway-proxy.payments-kic.svc.cluster.local` |
-| `grc-kic-gateway-proxy` | `grc-kic-gateway-proxy.grc-kic.svc.cluster.local` |
+| Retail Banking | `customer-profile-svc -> account-svc -> statement-svc` |
+| Payments | `transfer-svc -> payment-gateway-svc -> fx-svc` |
+| GRC | `fraud-svc -> audit-svc -> sanction-svc` |
 
-This keeps traffic inside the cluster and avoids sending the global gateway to the downstream public load balancers.
-
-### Domain Kong Gateways
-
-Each domain has:
-
-- A dedicated `GatewayClass`.
-- A dedicated `Gateway`.
-- A dedicated Kong Ingress Controller release.
-- An `HTTPRoute` that maps the domain hostname to the domain entry service.
-
-| Domain | KIC namespace | App namespace | Gateway | HTTPRoute |
-| --- | --- | --- | --- | --- |
-| Retail Banking | `retail-banking-kic` | `retail-banking-team` | `retail-banking-kong-api-gateway` | `customer-profile-httproute` |
-| Payments | `payments-kic` | `payments-team` | `payments-kong-api-gateway` | `transfer-httproute` |
-| GRC | `grc-kic` | `grc-team` | `grc-kong-api-gateway` | `fraud-httproute` |
-
-### Backend Services
-
-The demo workloads use `nicholasjackson/fake-service` so you can see the request chain in the response body.
-
-Retail Banking:
-
-```text
-customer-profile-svc
-  -> account-svc
-  -> statement-svc
-```
-
-Payments:
-
-```text
-transfer-svc
-  -> payment-gateway-svc
-  -> fx-svc
-```
-
-GRC:
-
-```text
-fraud-svc
-  -> audit-svc
-  -> sanction-svc
-```
-
-### Istio mTLS
-
-The `istio/` directory adds Istio sidecar injection labels for the Kong and application namespaces, then applies namespace-wide `PeerAuthentication` resources with `mtls.mode: STRICT`.
-
-This protects in-cluster traffic across:
-
-- Global Kong Gateway to downstream domain Kong gateways.
-- Domain Kong gateways to the domain entry services.
-- Microservice-to-microservice calls inside Retail Banking, Payments, and GRC.
-
-Install Istio and apply `istio/00-mesh-namespaces.yaml` before installing Kong and the application workloads so new pods receive an `istio-proxy` sidecar. Apply `istio/01-strict-mtls.yaml` after the pods are meshed.
-
-## Prerequisites
-
-- AWS CLI with a profile that can manage EKS and Route 53.
-- `eksctl`
-- `kubectl`
-- `helm`
-- `istioctl`, for Istio sidecar mTLS
-- Gateway API CRDs
-- Kong Helm chart repository
-- Route 53 public hosted zone for `mini-apps.click`
-- Terraform, only for HTTPS setup
-
-## Deployment
-
-Use [SETUP.md](SETUP.md) as the ordered deployment runbook.
-
-Summary:
-
-1. Create or connect to the EKS cluster.
-2. Install Gateway API CRDs.
-3. Install Istio and prepare the meshed namespaces.
-4. Install Kong Ingress Controller instances.
-5. Apply global GatewayClass, Gateway, `ExternalName` services, and global HTTPRoute.
-6. Apply domain GatewayClass and Gateway manifests.
-7. Deploy backend services.
-8. Apply domain HTTPRoutes.
-9. Apply Istio STRICT mTLS policies.
-10. Create Route 53 records for `mybank.mini-apps.click` and any direct domain hostnames.
-11. Enable HTTPS with Terraform.
-12. Test global and downstream access.
-
-## Test Global HTTPS
-
-```bash
-curl -k -i https://mybank.mini-apps.click/retail-banking
-curl -k -i https://mybank.mini-apps.click/payments
-curl -k -i https://mybank.mini-apps.click/grc
-```
-
-Use `-k` only while a self-signed certificate is still being served. After Terraform creates trusted Let's Encrypt certificates, test without `-k`:
-
-```bash
-curl -i https://mybank.mini-apps.click/retail-banking
-curl -i https://mybank.mini-apps.click/payments
-curl -i https://mybank.mini-apps.click/grc
-```
-
-## Test Downstream Domains
-
-```bash
-curl -i https://retail-banking.mini-apps.click/
-curl -i https://payments.mini-apps.click/
-curl -i https://grc.mini-apps.click/
-```
-
-If HTTPS is not enabled yet, test HTTP through each LoadBalancer with a Host header:
-
-```bash
-curl -i -H "Host: retail-banking.mini-apps.click" http://<retail-banking-kong-elb>/
-curl -i -H "Host: payments.mini-apps.click" http://<payments-kong-elb>/
-curl -i -H "Host: grc.mini-apps.click" http://<grc-kong-elb>/
-```
-
-Expected result: `HTTP/1.1 200 OK` with a fake-service response showing the upstream service chain.
-
-## Expected Response Indicators
+Expected response indicators:
 
 ```text
 HelloCloudBank | Retail Banking | customer-profile-svc
@@ -278,44 +107,203 @@ HelloCloudBank | GRC | audit-svc
 HelloCloudBank | GRC | sanction-svc
 ```
 
-## Enable HTTPS
+## Key Design Decisions
 
-The `for_https/` Terraform creates:
+### 1. Gateway API Instead of Ingress
 
-- Let's Encrypt certificates using Route 53 DNS validation.
-- Kubernetes TLS Secrets in the Kong KIC namespaces.
-- HTTPS listeners on port `443` for each Gateway.
+The project uses Kubernetes Gateway API resources:
 
-Run:
+- `GatewayClass` defines which Kong controller owns a gateway.
+- `Gateway` defines listeners and namespace route permissions.
+- `HTTPRoute` defines hostname, path matching, rewrites, and backend targets.
 
-```bash
-cd for_https
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform plan
-terraform apply
+This is more expressive than a traditional Kubernetes `Ingress` and fits a multi-team platform model.
+
+### 2. One Kong Controller Per Gateway Tier
+
+Each gateway has its own Kong Ingress Controller instance and controller name:
+
+| Tier | Namespace | GatewayClass |
+| --- | --- | --- |
+| Global | `global-kic` | `global-kong-gatewayclass` |
+| Retail Banking | `retail-banking-kic` | `retail-banking-kong-gatewayclass` |
+| Payments | `payments-kic` | `payments-kong-gatewayclass` |
+| GRC | `grc-kic` | `grc-kong-gatewayclass` |
+
+This prevents one controller from reconciling another team's routes.
+
+### 3. ExternalName Services for Private Gateway-to-Gateway Routing
+
+The global `HTTPRoute` references services in `global-api-gateway-ns`.
+
+Those services are `ExternalName` aliases to downstream Kong proxy services:
+
+| ExternalName service | Internal target |
+| --- | --- |
+| `retail-banking-kic-gateway-proxy` | `retail-banking-kic-gateway-proxy.retail-banking-kic.svc.cluster.local` |
+| `payments-kic-gateway-proxy` | `payments-kic-gateway-proxy.payments-kic.svc.cluster.local` |
+| `grc-kic-gateway-proxy` | `grc-kic-gateway-proxy.grc-kic.svc.cluster.local` |
+
+This keeps global-to-domain traffic inside Kubernetes DNS and avoids hairpinning through public cloud load balancers.
+
+### 4. Hostname and Path Rewrites
+
+The global route receives paths such as:
+
+```text
+/retail-banking
+/payments
+/grc
 ```
 
-Then test:
+Before forwarding to a downstream gateway, it:
+
+- Strips the global path prefix with `URLRewrite`.
+- Rewrites the hostname to the downstream domain hostname.
+
+Example:
+
+```text
+GET https://mybank.mini-apps.click/payments
+  -> Host becomes payments.mini-apps.click
+  -> Path becomes /
+  -> Payments domain HTTPRoute matches successfully
+```
+
+### 5. Istio mTLS for Internal Hops
+
+The `istio/` directory adds sidecar injection and mTLS policies for internal namespaces.
+
+Security model:
+
+- Public client to Global Kong: normal HTTP or HTTPS.
+- Global Kong to domain Kong: Istio mTLS.
+- Domain Kong to backend service: Istio mTLS.
+- Backend service to backend service: Istio mTLS.
+- `global-kic` remains inbound PERMISSIVE so public clients do not need Istio certificates.
+- Domain and application namespaces can be switched to STRICT mTLS after sidecars are confirmed.
+
+See [istio/README.md](istio/README.md) for the rollout sequence.
+
+## Repository Layout
+
+```text
+.
++-- 0-gatewayclass-global.yaml
++-- 1-kong-api-gateway-global.yaml
++-- 2-global-httproute.yaml
++-- 3-downstream-proxy-services.yaml
++-- apps/
+|   +-- retail-banking/
+|   |   +-- 00-retail-banking-gatewayclass.yaml
+|   |   +-- 01-retail-banking-kong-api-gateway.yaml
+|   |   +-- 02-customer-profile-httproute.yaml
+|   |   +-- customer/account/statement services
+|   +-- payments/
+|   |   +-- 00-payments-gatewayclass.yaml
+|   |   +-- 01-payments-kong-api-gateway.yaml
+|   |   +-- 02-transfer-httproute.yaml
+|   |   +-- transfer/payment-gateway/fx services
+|   +-- grc/
+|       +-- 00-grc-gatewayclass.yaml
+|       +-- 01-grc-kong-api-gateway.yaml
+|       +-- 02-fraud-httproute.yaml
+|       +-- fraud/audit/sanction services
++-- istio/
+|   +-- 00-mesh-namespaces.yaml
+|   +-- 01-mtls-permissive-client-in.yaml
+|   +-- 02-mtls-strict-internal.yaml
+|   +-- 03-destinationrules-istio-mutual.yaml
++-- for_https/
+|   +-- Terraform for Let's Encrypt TLS and HTTPS Gateway listeners
++-- SETUP.md
++-- README.md
+```
+
+## Manifest Walkthrough
+
+Use this section when explaining the project in an interview.
+
+| File | What to explain |
+| --- | --- |
+| `0-gatewayclass-global.yaml` | Creates the global GatewayClass and binds it to the global Kong controller name. |
+| `1-kong-api-gateway-global.yaml` | Creates `global-kic`, the global Gateway, and `global-api-gateway-ns` for global routes and aliases. |
+| `2-global-httproute.yaml` | Routes `/retail-banking`, `/payments`, and `/grc`; rewrites path and hostname for downstream gateways. |
+| `3-downstream-proxy-services.yaml` | Creates `ExternalName` services pointing to internal domain Kong proxy services. |
+| `apps/*/00-*.yaml` | Creates a domain GatewayClass owned by that domain's Kong controller. |
+| `apps/*/01-*.yaml` | Creates the domain Kong Gateway and restricts allowed route namespaces. |
+| `apps/*/02-*.yaml` | Creates the domain HTTPRoute and sends traffic to the first backend service. |
+| Domain service manifests | Deploy fake-service workloads that call the next service in the chain. |
+| `istio/*.yaml` | Enables sidecars, DestinationRules, and STRICT mTLS for internal traffic. |
+| `for_https/*.tf` | Adds Let's Encrypt certificates, Kubernetes TLS secrets, and HTTPS listeners. |
+
+## Prerequisites
+
+- AWS CLI with access to EKS and Route 53.
+- `eksctl`
+- `kubectl`
+- `helm`
+- `istioctl`, if enabling mTLS
+- Terraform, if enabling HTTPS automation
+- Gateway API CRDs installed in the cluster
+- Kong Helm chart repository
+- Route 53 public hosted zone for `mini-apps.click`
+
+## Deployment Overview
+
+Use [SETUP.md](SETUP.md) as the detailed deployment runbook.
+
+High-level sequence:
+
+1. Create or connect to the EKS cluster.
+2. Install Gateway API CRDs.
+3. Install Istio and prepare sidecar-injected namespaces, if using mTLS.
+4. Install the four Kong Ingress Controller Helm releases.
+5. Apply the global GatewayClass, Gateway, ExternalName services, and global HTTPRoute.
+6. Apply each domain GatewayClass and Gateway.
+7. Deploy the domain backend services.
+8. Apply each domain HTTPRoute.
+9. Apply Istio mTLS policies after confirming sidecars.
+10. Configure Route 53 records.
+11. Enable HTTPS with Terraform.
+12. Test global and direct domain routes.
+
+## Test Commands
+
+Global routes:
 
 ```bash
 curl -i https://mybank.mini-apps.click/retail-banking
+curl -i https://mybank.mini-apps.click/payments
+curl -i https://mybank.mini-apps.click/grc
+```
+
+Direct domain routes:
+
+```bash
 curl -i https://retail-banking.mini-apps.click/
 curl -i https://payments.mini-apps.click/
 curl -i https://grc.mini-apps.click/
 ```
 
-Do not commit `terraform.tfvars` or Terraform state files.
+Before HTTPS is enabled, test through the load balancer with a Host header:
 
-###Expected Test Results
+```bash
+curl -i -H "Host: mybank.mini-apps.click" http://<global-kong-elb>/retail-banking
+curl -i -H "Host: payments.mini-apps.click" http://<payments-kong-elb>/
+```
 
-![Expected Test Results](img-source/retail.png)
-![Expected Test Results](img-source/payments.png)
-![Expected Test Results](img-source/grc.png)
+Expected result: `HTTP/1.1 200 OK` and a fake-service response showing the service chain.
 
-## Useful Commands
+![Retail expected response](img-source/retail.png)
 
-Check Gateway API status:
+![Payments expected response](img-source/payments.png)
+
+![GRC expected response](img-source/grc.png)
+
+## Useful Verification Commands
+
+Gateway API status:
 
 ```bash
 kubectl get gatewayclass
@@ -323,13 +311,13 @@ kubectl get gateway -A
 kubectl get httproute -A
 ```
 
-Check Kong proxy services:
+Kong proxy services:
 
 ```bash
 kubectl get svc -A | grep gateway-proxy
 ```
 
-Check backend apps:
+Backend applications:
 
 ```bash
 kubectl get pods,svc -n retail-banking-team
@@ -337,7 +325,7 @@ kubectl get pods,svc -n payments-team
 kubectl get pods,svc -n grc-team
 ```
 
-Inspect route attachment:
+Route attachment status:
 
 ```bash
 kubectl describe httproute -n global-api-gateway-ns global-httproute
@@ -354,9 +342,29 @@ ResolvedRefs=True
 Programmed=True
 ```
 
-## Troubleshooting
+## HTTPS
 
-If a domain returns this Kong response:
+The `for_https/` Terraform module creates:
+
+- Let's Encrypt certificates using Route 53 DNS validation.
+- Kubernetes TLS secrets in Kong KIC namespaces.
+- HTTPS listeners on port `443` for the global and domain Gateways.
+
+Run:
+
+```bash
+cd for_https
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform plan
+terraform apply
+```
+
+Do not commit `terraform.tfvars`, `.terraform/`, Terraform state files, private keys, AWS credentials, or kubeconfig files.
+
+## Troubleshooting Notes
+
+If Kong returns:
 
 ```json
 {
@@ -364,26 +372,29 @@ If a domain returns this Kong response:
 }
 ```
 
-Check the matching `HTTPRoute` status:
+Check:
 
-```bash
-kubectl describe httproute transfer-httproute -n payments-team
-kubectl describe httproute fraud-httproute -n grc-team
-```
+- The request `Host` header matches the route hostname.
+- The global `URLRewrite.hostname` matches the downstream domain route hostname.
+- The downstream `HTTPRoute` has `Accepted=True` and `ResolvedRefs=True`.
+- The correct Kong controller is installed with the matching `gateway_api_controller_name`.
 
-If no `Status` section appears, the Kong controller for that domain is not reconciling the route. Check the matching KIC namespace and Helm values:
+If Istio STRICT mTLS breaks traffic:
 
-```bash
-kubectl get pods -n payments-kic
-kubectl get pods -n grc-kic
-helm get values payments-kic -n payments-kic
-helm get values grc-kic -n grc-kic
-```
+- Confirm every pod has an `istio-proxy` sidecar.
+- Apply PERMISSIVE mode again.
+- Restart pods that were created before namespace injection was enabled.
+- Reapply STRICT only after routes work in PERMISSIVE mode.
 
-## Notes
+## Tradeoffs and Next Improvements
 
-- Public DNS uses Route 53 records under `mini-apps.click`.
-- Local DNS may cache old failures. Use `nslookup <host> 1.1.1.1` or test with a Host header if needed.
-- Browser HTTPS warnings mean the site is serving a self-signed certificate. Use Terraform to issue trusted Let's Encrypt certificates.
-- The HTTPS Terraform state contains certificate private keys. Keep state private.
-- Do not commit AWS credentials, kubeconfig files, private keys, `terraform.tfvars`, `.terraform/`, or Terraform state files.
+This project intentionally focuses on architecture clarity, but the same pattern can be extended with:
+
+- Kong plugins for authentication, rate limiting, request transformation, and observability.
+- GitOps promotion per domain team.
+- Separate AWS accounts or clusters per environment.
+- NetworkPolicy for namespace-level traffic control.
+- OpenTelemetry traces across Kong, Istio, and application services.
+- Production certificate and Terraform state management.
+
+The main takeaway: the global gateway provides a single customer-facing API surface, while domain gateways preserve team ownership and internal mTLS keeps service-to-service traffic protected.

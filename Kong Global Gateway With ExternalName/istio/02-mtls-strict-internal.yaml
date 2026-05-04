@@ -4,7 +4,7 @@
 # global-kic is intentionally left PERMISSIVE: public HTTPS clients reach the
 # edge gateway without presenting an Istio workload certificate. All traffic
 # *leaving* global-kic is still mTLS via the DestinationRules in
-# 05-destinationrules-istio-mutual.yaml.
+# 03-destinationrules-istio-mutual.yaml.
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
 metadata:
