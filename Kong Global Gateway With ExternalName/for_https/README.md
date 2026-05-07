@@ -44,7 +44,8 @@ kubectl get secret -n grc-kic
 
 curl -i https://mybank.mini-apps.click/retail-banking
 curl -i https://retail-banking.mini-apps.click/
-curl -i https://payments.mini-apps.click/
+curl -i https://payments.mini-apps.click/ \
+  -H "apikey: payments-demo-key"
 curl -i https://grc.mini-apps.click/
 ```
 

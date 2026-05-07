@@ -6,7 +6,7 @@ This project shows how one public banking gateway can route traffic to multiple 
 
 ## Architecture Summary
 
-I built a production-style API gateway topology for a banking platform with three independent business domains: Retail Banking, Payments, and GRC.
+This project implements a production-style API gateway topology for a banking platform with three independent business domains: Retail Banking, Payments, and GRC.
 
 The key idea is a two-tier gateway model:
 
@@ -319,7 +319,7 @@ High-level sequence:
 5. Apply the global GatewayClass, Gateway, ExternalName services, and global HTTPRoute.
 6. Apply each domain GatewayClass and Gateway.
 7. Deploy the domain backend services.
-8. Apply each domain HTTPRoute.
+8. Apply each domain HTTPRoute. For Payments, apply the Kong plugin manifests first.
 9. Apply Istio mTLS policies after confirming sidecars.
 10. Configure Route 53 records.
 11. Enable HTTPS with Terraform.
