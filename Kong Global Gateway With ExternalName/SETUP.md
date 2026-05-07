@@ -221,36 +221,38 @@ Install Kong Ingress Controller for the Global Gateway:
 
 ```bash
 helm install global-kic kong/ingress \
-  --namespace global-kic \
-  --create-namespace \
+  --namespace global-kic --create-namespace \
   --set controller.ingressController.env.gateway_api_controller_name=konghq.com/global-kong-gateway-controller
 ```
 
 Install Kong Ingress Controller for Retail Banking:
 
 ```bash
-helm install retail-banking-kic kong/ingress \
-  --namespace retail-banking-kic \
-  --create-namespace \
-  --set controller.ingressController.env.gateway_api_controller_name=konghq.com/retail-banking-kong-gateway-controller
+helm upgrade --install retail-banking-kic kong/ingress \
+  --namespace retail-banking-kic --create-namespace \
+  --set controller.ingressController.env.gateway_api_controller_name=konghq.com/retail-banking-kong-gateway-controller \
+  --set gateway.proxy.type=ClusterIP \
+  --set "gateway.podAnnotations.traffic\.sidecar\.istio\.io/includeInboundPorts=8000\,8443"
 ```
 
 Install Kong Ingress Controller for Payments:
 
 ```bash
-helm install payments-kic kong/ingress \
-  --namespace payments-kic \
-  --create-namespace \
-  --set controller.ingressController.env.gateway_api_controller_name=konghq.com/payments-kong-gateway-controller
+helm upgrade --install payments-kic kong/ingress \
+  --namespace payments-kic --create-namespace \
+  --set controller.ingressController.env.gateway_api_controller_name=konghq.com/payments-kong-gateway-controller \
+  --set gateway.proxy.type=ClusterIP \
+  --set "gateway.podAnnotations.traffic\.sidecar\.istio\.io/includeInboundPorts=8000\,8443"
 ```
 
 Install Kong Ingress Controller for GRC:
 
 ```bash
-helm install grc-kic kong/ingress \
-  --namespace grc-kic \
-  --create-namespace \
-  --set controller.ingressController.env.gateway_api_controller_name=konghq.com/grc-kong-gateway-controller
+helm upgrade --install grc-kic kong/ingress \
+  --namespace grc-kic --create-namespace \
+  --set controller.ingressController.env.gateway_api_controller_name=konghq.com/grc-kong-gateway-controller \
+  --set gateway.proxy.type=ClusterIP \
+  --set "gateway.podAnnotations.traffic\.sidecar\.istio\.io/includeInboundPorts=8000\,8443"
 ```
 
 Verify Kong pods and proxy services:
