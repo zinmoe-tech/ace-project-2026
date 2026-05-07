@@ -11,6 +11,8 @@ metadata:
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    ingress.kubernetes.io/service-upstream: "true" # Make Kong call the Kubernetes Service, not pod IPs; required for Istio STRICT mTLS.
   name: customer-profile-svc
   namespace: retail-banking-team
 spec:

@@ -217,37 +217,26 @@ helm repo add kong https://charts.konghq.com
 helm repo update
 ```
 
-Install Kong Ingress Controller for the Global Gateway:
+Install the global Kong Ingress Controller as a public LoadBalancer, and install
+the domain-specific gateways as internal `ClusterIP` services:
 
 ```bash
 helm install global-kic kong/ingress \
   --namespace global-kic --create-namespace \
   --set controller.ingressController.env.gateway_api_controller_name=konghq.com/global-kong-gateway-controller
-```
 
-Install Kong Ingress Controller for Retail Banking:
-
-```bash
 helm upgrade --install retail-banking-kic kong/ingress \
   --namespace retail-banking-kic --create-namespace \
   --set controller.ingressController.env.gateway_api_controller_name=konghq.com/retail-banking-kong-gateway-controller \
   --set gateway.proxy.type=ClusterIP \
   --set "gateway.podAnnotations.traffic\.sidecar\.istio\.io/includeInboundPorts=8000\,8443"
-```
 
-Install Kong Ingress Controller for Payments:
-
-```bash
 helm upgrade --install payments-kic kong/ingress \
   --namespace payments-kic --create-namespace \
   --set controller.ingressController.env.gateway_api_controller_name=konghq.com/payments-kong-gateway-controller \
   --set gateway.proxy.type=ClusterIP \
   --set "gateway.podAnnotations.traffic\.sidecar\.istio\.io/includeInboundPorts=8000\,8443"
-```
 
-Install Kong Ingress Controller for GRC:
-
-```bash
 helm upgrade --install grc-kic kong/ingress \
   --namespace grc-kic --create-namespace \
   --set controller.ingressController.env.gateway_api_controller_name=konghq.com/grc-kong-gateway-controller \
@@ -359,6 +348,26 @@ kubectl apply -f apps/payments/payment-gateway.yaml
 kubectl apply -f apps/payments/fx-svc.yaml
 ```
 
+Apply the Payments Kong plugins before applying the Payments HTTPRoute.
+
+The Payments route uses Kong plugins through this annotation:
+
+```yaml
+konghq.com/plugins: rate-limit-payments,key-auth-payments
+```
+
+That means the route expects these plugin resources to already exist:
+
+- `rate-limit-payments`: limits how many requests a client can send.
+- `key-auth-payments`: requires a valid API key before Kong forwards traffic.
+
+Apply the plugin manifests:
+
+```bash
+kubectl apply -f apps/payments/03-rate-limit-plugin.yaml
+kubectl apply -f apps/payments/04-key-auth-plugin.yaml
+```
+
 Apply the Payments HTTPRoute:
 
 ```bash
@@ -370,6 +379,8 @@ Verify:
 ```bash
 kubectl get gateway -n payments-kic
 kubectl get httproute -n payments-team
+kubectl get kongplugin -n payments-team
+kubectl get kongconsumer -n payments-team
 kubectl get pods,svc -n payments-team
 ```
 
@@ -470,7 +481,9 @@ GLOBAL_LB=$(kubectl get svc -n global-kic global-kic-gateway-proxy \
   -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
 curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/retail-banking"
-curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/payments"
+curl -H "Host: mybank.mini-apps.click" \
+  -H "apikey: payments-demo-key" \
+  "http://${GLOBAL_LB}/payments"
 curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/grc"
 ```
 
@@ -492,7 +505,9 @@ Validate again after switching to STRICT:
 
 ```bash
 curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/retail-banking"
-curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/payments"
+curl -H "Host: mybank.mini-apps.click" \
+  -H "apikey: payments-demo-key" \
+  "http://${GLOBAL_LB}/payments"
 curl -H "Host: mybank.mini-apps.click" "http://${GLOBAL_LB}/grc"
 ```
 
@@ -594,7 +609,8 @@ curl -i http://mybank.mini-apps.click/retail-banking
 Test Payments:
 
 ```bash
-curl -i http://mybank.mini-apps.click/payments
+curl -i http://mybank.mini-apps.click/payments \
+  -H "apikey: payments-demo-key"
 ```
 
 Test GRC:
@@ -616,7 +632,151 @@ Client
 ```
 
 ################################################################################
-# 13. Useful troubleshooting commands
+# 13. Understand and test the Payments Kong plugins
+################################################################################
+
+Payments has two Kong plugins attached to its `HTTPRoute`:
+
+```text
+rate-limit-payments
+key-auth-payments
+```
+
+The route attachment is in `apps/payments/02-transfer-httproute.yaml`:
+
+```yaml
+metadata:
+  annotations:
+    konghq.com/plugins: rate-limit-payments,key-auth-payments
+```
+
+This annotation means:
+
+```text
+Before Kong sends traffic to transfer-svc, run these plugins.
+```
+
+## 13a. Rate limiting
+
+The rate limit plugin is defined in:
+
+```text
+apps/payments/03-rate-limit-plugin.yaml
+```
+
+It contains:
+
+```yaml
+config:
+  minute: 5
+  policy: local
+```
+
+Meaning:
+
+```text
+Allow 5 requests per minute.
+After that, return HTTP 429 Too Many Requests.
+```
+
+`policy: local` means each Kong proxy pod keeps its own counter. This is simple
+and good for learning. In a multi-pod production setup, local counters are not
+shared across all Kong pods.
+
+## 13b. Key authentication
+
+The Key-Auth plugin is defined in:
+
+```text
+apps/payments/04-key-auth-plugin.yaml
+```
+
+It contains three resources:
+
+```text
+KongPlugin   -> enables the key-auth plugin
+Secret       -> stores the API key
+KongConsumer -> represents the client that owns the key
+```
+
+The demo key is:
+
+```text
+payments-demo-key
+```
+
+Kong expects the user or API client to send that key in this HTTP header:
+
+```text
+Header name:  apikey
+Header value: payments-demo-key
+```
+
+For browser users, manually sending an API key header is not friendly. Key-Auth
+is best for machine clients, internal tools, or partner APIs. For real end-user
+login, use an identity provider such as AWS Cognito with JWT or OIDC.
+
+## 13c. Test Key-Auth
+
+Call Payments without the API key:
+
+```bash
+curl -i http://mybank.mini-apps.click/payments
+```
+
+Expected result:
+
+```text
+HTTP 401 Unauthorized
+```
+
+Kong blocks the request because no valid API key was provided.
+
+Call Payments with the correct API key:
+
+```bash
+curl -i http://mybank.mini-apps.click/payments \
+  -H "apikey: payments-demo-key"
+```
+
+Expected result:
+
+```text
+HTTP 200 OK
+```
+
+Kong accepts the key and forwards the request to `transfer-svc`.
+
+## 13d. Test rate limiting
+
+Send more than 5 valid requests within one minute:
+
+```bash
+for i in {1..7}; do
+  echo "Request $i"
+  curl -i http://mybank.mini-apps.click/payments \
+    -H "apikey: payments-demo-key"
+done
+```
+
+Expected result:
+
+```text
+First 5 requests: HTTP 200 OK
+Later requests:   HTTP 429 Too Many Requests
+```
+
+The final Payments behavior is:
+
+```text
+No API key       -> 401 Unauthorized
+Wrong API key    -> 401 Unauthorized
+Correct API key  -> 200 OK
+Too many calls   -> 429 Too Many Requests
+```
+
+################################################################################
+# 14. Useful troubleshooting commands
 ################################################################################
 
 Check all gateways:
@@ -679,7 +839,7 @@ kubectl get pods -n grc-kic -o jsonpath='{range .items[*]}{.metadata.name}{"  "}
 ```
 
 ################################################################################
-# 14. Optional HTTPS setup
+# 15. Optional HTTPS setup
 ################################################################################
 
 The `for_https` directory contains Terraform files for Let's Encrypt certificates and HTTPS listeners.
@@ -714,12 +874,13 @@ Test HTTPS:
 
 ```bash
 curl -i https://mybank.mini-apps.click/retail-banking
-curl -i https://mybank.mini-apps.click/payments
+curl -i https://mybank.mini-apps.click/payments \
+  -H "apikey: payments-demo-key"
 curl -i https://mybank.mini-apps.click/grc
 ```
 
 ################################################################################
-# 15. Cleanup
+# 16. Cleanup
 ################################################################################
 
 Delete Istio mTLS policies:
@@ -746,6 +907,8 @@ Delete Payments resources:
 
 ```bash
 kubectl delete -f apps/payments/02-transfer-httproute.yaml
+kubectl delete -f apps/payments/04-key-auth-plugin.yaml --ignore-not-found
+kubectl delete -f apps/payments/03-rate-limit-plugin.yaml --ignore-not-found
 kubectl delete -f apps/payments/fx-svc.yaml
 kubectl delete -f apps/payments/payment-gateway.yaml
 kubectl delete -f apps/payments/transfer-svc.yaml

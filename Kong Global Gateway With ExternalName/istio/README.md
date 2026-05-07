@@ -11,7 +11,56 @@ Public client
   -> Domain backend services
 ```
 
-## Interview Summary
+## mTLS Workflow Diagram
+
+Istio mTLS starts after traffic reaches a meshed workload. Public clients do
+not have Istio workload certificates, so `global-kic` stays inbound
+PERMISSIVE. The internal hops are protected by sidecars and `DestinationRule`
+resources that use `ISTIO_MUTUAL`.
+
+```mermaid
+flowchart LR
+    client[Public client<br/>HTTP or HTTPS]
+    globalKong[Global Kong pod<br/>global-kic]
+    globalEnvoy[Envoy sidecar<br/>global-kic]
+    externalName[ExternalName alias<br/>global-api-gateway-ns]
+    paymentsEnvoy[Envoy sidecar<br/>payments-kic]
+    paymentsKong[Payments Kong pod<br/>payments-kic]
+    transferEnvoy[Envoy sidecar<br/>payments-team]
+    transfer[transfer-svc]
+    gatewayEnvoy[Envoy sidecar<br/>payments-team]
+    paymentGateway[payment-gateway-svc]
+    fxEnvoy[Envoy sidecar<br/>payments-team]
+    fx[fx-svc]
+
+    client -->|normal edge traffic<br/>not Istio mTLS| globalKong
+    globalKong --> globalEnvoy
+    globalEnvoy -. DNS lookup .-> externalName
+    externalName -. resolves to .-> paymentsEnvoy
+    globalEnvoy -->|ISTIO_MUTUAL mTLS| paymentsEnvoy
+    paymentsEnvoy --> paymentsKong
+    paymentsKong -->|Kong route and plugins pass| paymentsEnvoy
+    paymentsEnvoy -->|ISTIO_MUTUAL mTLS| transferEnvoy
+    transferEnvoy --> transfer
+    transfer --> transferEnvoy
+    transferEnvoy -->|ISTIO_MUTUAL mTLS| gatewayEnvoy
+    gatewayEnvoy --> paymentGateway
+    paymentGateway --> gatewayEnvoy
+    gatewayEnvoy -->|ISTIO_MUTUAL mTLS| fxEnvoy
+    fxEnvoy --> fx
+```
+
+For the other domains, the same pattern applies:
+
+```text
+Global Kong sidecar
+  -> domain Kong sidecar
+  -> first service sidecar
+  -> next service sidecar
+  -> final service sidecar
+```
+
+## Design Summary
 
 The important design choice is that `global-kic` stays inbound PERMISSIVE because public clients do not present Istio workload certificates. Internal namespaces can be STRICT because all participating Kong and application pods have Istio sidecars.
 
@@ -135,7 +184,9 @@ Check routes after STRICT mTLS:
 
 ```bash
 curl -i -H "Host: mybank.mini-apps.click" http://<global-kong-elb>/retail-banking
-curl -i -H "Host: mybank.mini-apps.click" http://<global-kong-elb>/payments
+curl -i -H "Host: mybank.mini-apps.click" \
+  -H "apikey: payments-demo-key" \
+  http://<global-kong-elb>/payments
 curl -i -H "Host: mybank.mini-apps.click" http://<global-kong-elb>/grc
 ```
 

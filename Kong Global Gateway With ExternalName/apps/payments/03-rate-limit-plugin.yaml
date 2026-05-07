@@ -1,0 +1,9 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rate-limit-payments
+  namespace: payments-team
+plugin: rate-limiting
+config:
+  minute: 7
+  policy: local

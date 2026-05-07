@@ -1,10 +1,10 @@
 # Kong Global Gateway With ExternalName
 
-Interview-ready reference project for a distributed API gateway pattern on Amazon EKS.
+Reference project for a distributed API gateway pattern on Amazon EKS.
 
 This project shows how one public banking gateway can route traffic to multiple domain-owned Kong gateways while keeping east-west traffic inside the Kubernetes cluster. It uses Kong Ingress Controller, Kubernetes Gateway API, `ExternalName` services, Route 53 DNS, optional Terraform-managed HTTPS, and optional Istio mTLS for in-cluster encryption.
 
-## 60 Second Interview Summary
+## Architecture Summary
 
 I built a production-style API gateway topology for a banking platform with three independent business domains: Retail Banking, Payments, and GRC.
 
@@ -28,7 +28,7 @@ This project models that setup:
 - Domain teams own their own gateways, routes, namespaces, and services.
 - Traffic between gateways stays private inside the cluster.
 - Security teams can enforce in-cluster mTLS without exposing Istio directly at the public edge.
-- Interviewers can inspect each manifest and see clear ownership boundaries.
+- Each manifest shows clear ownership boundaries between the platform layer and domain teams.
 
 ## Architecture
 
@@ -72,6 +72,59 @@ flowchart LR
 ![High-level flow](img-source/flow_diagram.png)
 
 ![Traffic flow](img-source/traffic-flow.png)
+
+## User Traffic and Plugin Workflow
+
+Payments has two Kong plugins attached to its domain `HTTPRoute`:
+
+```text
+rate-limit-payments
+key-auth-payments
+```
+
+The plugins run at the Payments Kong Gateway before the request reaches
+`transfer-svc`.
+
+```mermaid
+flowchart LR
+    user[User or API client]
+    dns[Route 53<br/>mybank.mini-apps.click]
+    globalKong[Global Kong Gateway<br/>public edge]
+    globalRoute[Global HTTPRoute<br/>/payments]
+    externalName[ExternalName service<br/>global-api-gateway-ns]
+    paymentsKong[Payments Kong Gateway<br/>payments-kic]
+    keyAuth{Key-Auth<br/>valid apikey?}
+    rateLimit{Rate limit<br/>under 5/min?}
+    transfer[transfer-svc<br/>payments-team]
+    paymentGateway[payment-gateway-svc<br/>payments-team]
+    fx[fx-svc<br/>payments-team]
+    unauthorized[401 Unauthorized]
+    tooMany[429 Too Many Requests]
+
+    user --> dns --> globalKong --> globalRoute --> externalName --> paymentsKong
+    paymentsKong --> keyAuth
+    keyAuth -- no --> unauthorized
+    keyAuth -- yes --> rateLimit
+    rateLimit -- no --> tooMany
+    rateLimit -- yes --> transfer
+    transfer --> paymentGateway
+    paymentGateway --> fx
+```
+
+Request behavior:
+
+| Request | Result | Why |
+| --- | --- | --- |
+| No API key | `401 Unauthorized` | Kong Key-Auth blocks the request. |
+| Wrong API key | `401 Unauthorized` | Kong cannot match the key to a valid consumer. |
+| Correct API key | `200 OK` | Kong accepts the key and forwards the request. |
+| More than 5 valid requests per minute | `429 Too Many Requests` | Kong rate limiting blocks excess traffic. |
+
+The valid demo header is:
+
+```text
+apikey: payments-demo-key
+```
 
 ## Public Routes
 
@@ -203,6 +256,8 @@ See [istio/README.md](istio/README.md) for the rollout sequence.
 |   |   +-- 00-payments-gatewayclass.yaml
 |   |   +-- 01-payments-kong-api-gateway.yaml
 |   |   +-- 02-transfer-httproute.yaml
+|   |   +-- 03-rate-limit-plugin.yaml
+|   |   +-- 04-key-auth-plugin.yaml
 |   |   +-- transfer/payment-gateway/fx services
 |   +-- grc/
 |       +-- 00-grc-gatewayclass.yaml
@@ -222,7 +277,7 @@ See [istio/README.md](istio/README.md) for the rollout sequence.
 
 ## Manifest Walkthrough
 
-Use this section when explaining the project in an interview.
+Use this section when explaining the project structure and resource ownership.
 
 | File | What to explain |
 | --- | --- |
@@ -233,6 +288,8 @@ Use this section when explaining the project in an interview.
 | `apps/*/00-*.yaml` | Creates a domain GatewayClass owned by that domain's Kong controller. |
 | `apps/*/01-*.yaml` | Creates the domain Kong Gateway and restricts allowed route namespaces. |
 | `apps/*/02-*.yaml` | Creates the domain HTTPRoute and sends traffic to the first backend service. |
+| `apps/payments/03-rate-limit-plugin.yaml` | Adds a Kong rate-limiting plugin to the Payments route. |
+| `apps/payments/04-key-auth-plugin.yaml` | Adds Key-Auth, a demo API key secret, and a KongConsumer for Payments. |
 | Domain service manifests | Deploy fake-service workloads that call the next service in the chain. |
 | `istio/*.yaml` | Enables sidecars, DestinationRules, and STRICT mTLS for internal traffic. |
 | `for_https/*.tf` | Adds Let's Encrypt certificates, Kubernetes TLS secrets, and HTTPS listeners. |
@@ -274,7 +331,8 @@ Global routes:
 
 ```bash
 curl -i https://mybank.mini-apps.click/retail-banking
-curl -i https://mybank.mini-apps.click/payments
+curl -i https://mybank.mini-apps.click/payments \
+  -H "apikey: payments-demo-key"
 curl -i https://mybank.mini-apps.click/grc
 ```
 
@@ -282,7 +340,8 @@ Direct domain routes:
 
 ```bash
 curl -i https://retail-banking.mini-apps.click/
-curl -i https://payments.mini-apps.click/
+curl -i https://payments.mini-apps.click/ \
+  -H "apikey: payments-demo-key"
 curl -i https://grc.mini-apps.click/
 ```
 
@@ -290,7 +349,9 @@ Before HTTPS is enabled, test through the load balancer with a Host header:
 
 ```bash
 curl -i -H "Host: mybank.mini-apps.click" http://<global-kong-elb>/retail-banking
-curl -i -H "Host: payments.mini-apps.click" http://<payments-kong-elb>/
+curl -i -H "Host: payments.mini-apps.click" \
+  -H "apikey: payments-demo-key" \
+  http://<payments-kong-elb>/
 ```
 
 Expected result: `HTTP/1.1 200 OK` and a fake-service response showing the service chain.

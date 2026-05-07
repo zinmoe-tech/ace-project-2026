@@ -1,0 +1,27 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: key-auth-payments
+  namespace: payments-team
+plugin: key-auth
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: payments-client-key-auth
+  namespace: payments-team
+  labels:
+    konghq.com/credential: key-auth
+stringData:
+  key: payments-demo-key
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongConsumer
+metadata:
+  name: payments-client
+  namespace: payments-team
+  annotations:
+    kubernetes.io/ingress.class: kong
+username: payments-client
+credentials:
+- payments-client-key-auth
