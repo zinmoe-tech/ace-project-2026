@@ -69,10 +69,6 @@ flowchart LR
     globalRoute -->|/grc| grcAlias --> grcGw --> grcSvc
 ```
 
-![High-level flow](img-source/flow_diagram.png)
-
-![Traffic flow](img-source/traffic-flow.png)
-
 ## User Traffic and Plugin Workflow
 
 Payments has two Kong plugins attached to its domain `HTTPRoute`:
@@ -355,12 +351,6 @@ curl -i -H "Host: payments.mini-apps.click" \
 ```
 
 Expected result: `HTTP/1.1 200 OK` and a fake-service response showing the service chain.
-
-![Retail expected response](img-source/retail.png)
-
-![Payments expected response](img-source/payments.png)
-
-![GRC expected response](img-source/grc.png)
 
 ## Useful Verification Commands
 
