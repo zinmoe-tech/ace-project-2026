@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: retail-banking-virtual-svc
+  namespace: istio-system
+spec:
+  hosts:
+  - retail-banking.ky-cloud.click
+  gateways:
+  - retail-banking-istio-igw
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: customer-profile-svc.retail-banking-ns.svc.cluster.local
+        port:
+          number: 8081

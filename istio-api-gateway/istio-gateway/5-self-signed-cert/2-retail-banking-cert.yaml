@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: retail-banking-cert
+  namespace: retail-banking-kic
+spec:
+  secretName: retail-banking-tls
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
+  commonName: retail-banking.ky-cloud.click
+  dnsNames:
+    - retail-banking.ky-cloud.click
