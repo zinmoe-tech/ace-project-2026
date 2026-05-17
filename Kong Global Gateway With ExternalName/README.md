@@ -140,7 +140,133 @@ The backend workloads use `nicholasjackson/fake-service` so every response shows
 | Payments | `transfer-svc -> payment-gateway-svc -> fx-svc` |
 | GRC | `fraud-svc -> audit-svc -> sanction-svc` |
 
+<<<<<<< Updated upstream
 Expected response indicators:
+=======
+This keeps traffic inside the cluster and avoids sending the global gateway to the downstream public load balancers.
+
+### Domain Kong Gateways
+
+Each domain has:
+
+- A dedicated `GatewayClass`.
+- A dedicated `Gateway`.
+- A dedicated Kong Ingress Controller release.
+- An `HTTPRoute` that maps the domain hostname to the domain entry service.
+
+| Domain | KIC namespace | App namespace | Gateway | HTTPRoute |
+| --- | --- | --- | --- | --- |
+| Retail Banking | `retail-banking-kic` | `retail-banking-team` | `retail-banking-kong-api-gateway` | `customer-profile-httproute` |
+| Payments | `payments-kic` | `payments-team` | `payments-kong-api-gateway` | `transfer-httproute` |
+| GRC | `grc-kic` | `grc-team` | `grc-kong-api-gateway` | `fraud-httproute` |
+
+### Backend Services
+
+The demo workloads use `nicholasjackson/fake-service` so you can see the request chain in the response body.
+
+Retail Banking:
+
+```text
+customer-profile-svc
+  -> account-svc
+  -> statement-svc
+```
+
+Payments:
+
+```text
+transfer-svc
+  -> payment-gateway-svc
+  -> fx-svc
+```
+
+GRC:
+
+```text
+fraud-svc
+  -> audit-svc
+  -> sanction-svc
+```
+
+### Istio mTLS
+
+The `istio/` directory adds Istio sidecar injection labels for the Kong and application namespaces, then applies namespace-wide `PeerAuthentication` resources with `mtls.mode: STRICT`.
+
+This protects in-cluster traffic across:
+
+- Global Kong Gateway to downstream domain Kong gateways.
+- Domain Kong gateways to the domain entry services.
+- Microservice-to-microservice calls inside Retail Banking, Payments, and GRC.
+
+Install Istio and apply `istio/00-mesh-namespaces.yaml` before installing Kong and the application workloads so new pods receive an `istio-proxy` sidecar. Apply `istio/00-mtls-permissive.yaml` and `istio/05-destinationrules-istio-mutual.yaml` first, then apply `istio/10-mtls-strict-internal.yaml` after the pods are meshed and traffic has been verified.
+
+## Prerequisites
+
+- AWS CLI with a profile that can manage EKS and Route 53.
+- `eksctl`
+- `kubectl`
+- `helm`
+- `istioctl`, for Istio sidecar mTLS
+- Gateway API CRDs
+- Kong Helm chart repository
+- Route 53 public hosted zone for `mini-apps.click`
+- Terraform, only for HTTPS setup
+
+## Deployment
+
+Use [SETUP.md](SETUP.md) as the ordered deployment runbook.
+
+Summary:
+
+1. Create or connect to the EKS cluster.
+2. Install Gateway API CRDs.
+3. Install Istio and prepare the meshed namespaces.
+4. Install Kong Ingress Controller instances.
+5. Apply global GatewayClass, Gateway, `ExternalName` services, and global HTTPRoute.
+6. Apply domain GatewayClass and Gateway manifests.
+7. Deploy backend services.
+8. Apply domain HTTPRoutes.
+9. Apply Istio STRICT mTLS policies.
+10. Create Route 53 records for `mybank.mini-apps.click` and any direct domain hostnames.
+11. Enable HTTPS with Terraform.
+12. Test global and downstream access.
+
+## Test Global HTTPS
+
+```bash
+curl -k -i https://mybank.mini-apps.click/retail-banking
+curl -k -i https://mybank.mini-apps.click/payments
+curl -k -i https://mybank.mini-apps.click/grc
+```
+
+Use `-k` only while a self-signed certificate is still being served. After Terraform creates trusted Let's Encrypt certificates, test without `-k`:
+
+```bash
+curl -i https://mybank.mini-apps.click/retail-banking
+curl -i https://mybank.mini-apps.click/payments
+curl -i https://mybank.mini-apps.click/grc
+```
+
+## Test Downstream Domains
+
+```bash
+curl -i https://retail-banking.mini-apps.click/
+curl -i https://payments.mini-apps.click/
+curl -i https://grc.mini-apps.click/
+```
+
+If HTTPS is not enabled yet, test HTTP through each LoadBalancer with a Host header:
+
+```bash
+curl -i -H "Host: retail-banking.mini-apps.click" http://<retail-banking-kong-elb>/
+curl -i -H "Host: payments.mini-apps.click" http://<payments-kong-elb>/
+curl -i -H "Host: grc.mini-apps.click" http://<grc-kong-elb>/
+```
+
+Expected result: `HTTP/1.1 200 OK` with a fake-service response showing the upstream service chain.
+
+## Expected Response Indicators
+>>>>>>> Stashed changes
 
 ```text
 HelloCloudBank | Retail Banking | customer-profile-svc

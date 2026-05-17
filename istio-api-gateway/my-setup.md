@@ -9,7 +9,7 @@ istioctl install --set profile=default \
   -y
 
 3 - Forward port of Istio Ingress Gateway pod
-kubectl port-forward pod/istio-ingressgateway-85c8f4b645-9gns4 -n istio-system 15000:15000
+kubectl port-forward pod/istio-ingressgateway-7bd6855ff5-s45vp -n istio-system 15000:15000
 
 4 - Access the below address on your browser
 localhost:15000 >> config_dump
@@ -40,6 +40,31 @@ Available Commands:
   secret         Retrieves secret configuration for the Envoy in the specified pod
 
 7 - How to see data from seenvoy
-kubectl port-forward pod/istio-ingressgateway-85c8f4b645-9gns4 -n istio-system 9901:15000
+kubectl port-forward pod/istio-ingressgateway-7bd6855ff5-s45vp -n istio-system 9901:15000
 
 seenvoy -t http://localhost:9901
+
+curl -H "Host: retail-banking.ky-cloud.click" http://172.18.255.180
+
+###Istio add on installation for observility
+1. check version
+$istioctl version
+<or>
+$istioctl proxy-status
+
+2. export ISTIO_VERSION=1.24.0
+
+3. curl -L https://istio.io/downloadIstio | ISTIO_VERSION=${ISTIO_VERSION} sh -
+
+4. kubectl apply -f /home/zinmoe/Desktop/ace-project-2026/ace-project-2026/istio-api-gateway/istio-1.24.0/samples/addons
+
+while true; do curl -H "Host: retail-banking.ky-cloud.click" http://172.18.255.180; sleep 0.5; done
+
+
+# prometheus 9090
+kubectl port-forward -n istio-system svc/prometheus --address 0.0.0.0 9090:9090
+
+# grafana 3000
+kubectl port-forward -n istio-system svc/grafana --address 0.0.0.0 3000:3000
+
+hey -n 1000 -c 100 -host "retail-banking.ky-cloud.click" http://172.18.255.180/

@@ -237,11 +237,34 @@ helm upgrade --install payments-kic kong/ingress \
   --set gateway.proxy.type=ClusterIP \
   --set "gateway.podAnnotations.traffic\.sidecar\.istio\.io/includeInboundPorts=8000\,8443"
 
+<<<<<<< Updated upstream
 helm upgrade --install grc-kic kong/ingress \
   --namespace grc-kic --create-namespace \
   --set controller.ingressController.env.gateway_api_controller_name=konghq.com/grc-kong-gateway-controller \
   --set gateway.proxy.type=ClusterIP \
   --set "gateway.podAnnotations.traffic\.sidecar\.istio\.io/includeInboundPorts=8000\,8443"
+=======
+> **Note:** The global KIC proxy is a LoadBalancer (public entry point). Domain KIC proxies use ClusterIP — they are internal only, reached via ExternalName services from the global gateway.
+
+```bash
+helm upgrade --install retail-banking-kic kong/ingress \
+  --namespace retail-banking-kic \
+  --set controller.ingressController.env.gateway_api_controller_name=konghq.com/retail-banking-kong-gateway-controller \
+  --set gateway.proxy.type=ClusterIP \
+  --set-string gateway.podAnnotations."traffic\.sidecar\.istio\.io/includeInboundPorts"="8000\,8443"
+
+helm upgrade --install payments-kic kong/ingress \
+  --namespace payments-kic \
+  --set controller.ingressController.env.gateway_api_controller_name=konghq.com/payments-kong-gateway-controller \
+  --set gateway.proxy.type=ClusterIP \
+  --set-string gateway.podAnnotations."traffic\.sidecar\.istio\.io/includeInboundPorts"="8000\,8443"
+
+helm upgrade --install grc-kic kong/ingress \
+  --namespace grc-kic \
+  --set controller.ingressController.env.gateway_api_controller_name=konghq.com/grc-kong-gateway-controller \
+  --set gateway.proxy.type=ClusterIP \
+  --set-string gateway.podAnnotations."traffic\.sidecar\.istio\.io/includeInboundPorts"="8000\,8443"
+>>>>>>> Stashed changes
 ```
 
 Verify Kong pods and proxy services:
@@ -253,15 +276,14 @@ kubectl get svc -A | grep gateway-proxy
 
 The downstream proxy services shown here are the real services targeted by the `ExternalName` services in `3-downstream-proxy-services.yaml`.
 
+Domain KIC pods must allow Istio to capture inbound Kong proxy ports. Without
+the `includeInboundPorts=8000,8443` annotation above, Istio auto mTLS can send a
+TLS stream directly to Kong's plaintext HTTP port and the global route returns
+`503` with `OPENSSL_internal:WRONG_VERSION_NUMBER`.
+
 ################################################################################
 # 6. Deploy the global gateway layer
 ################################################################################
-
-Apply the global GatewayClass:
-
-```bash
-kubectl apply -f 0-gatewayclass-global.yaml
-```
 
 Apply the global Kong Gateway namespace, Gateway, and route namespace:
 
@@ -294,10 +316,9 @@ kubectl get svc -n global-api-gateway-ns
 # 7. Deploy Retail Banking
 ################################################################################
 
-Apply the Retail Banking GatewayClass and Gateway:
+Apply the Retail Banking Gateway:
 
 ```bash
-kubectl apply -f apps/retail-banking/00-retail-banking-gatewayclass.yaml
 kubectl apply -f apps/retail-banking/01-retail-banking-kong-api-gateway.yaml
 ```
 
@@ -333,10 +354,9 @@ Apply the Payments application namespace:
 kubectl apply -f apps/payments/payments-ns.yaml
 ```
 
-Apply the Payments GatewayClass and Gateway:
+Apply the Payments Gateway:
 
 ```bash
-kubectl apply -f apps/payments/00-payments-gatewayclass.yaml
 kubectl apply -f apps/payments/01-payments-kong-api-gateway.yaml
 ```
 
@@ -394,10 +414,9 @@ Apply the GRC application namespace:
 kubectl apply -f apps/grc/grc-ns.yaml
 ```
 
-Apply the GRC GatewayClass and Gateway:
+Apply the GRC Gateway:
 
 ```bash
-kubectl apply -f apps/grc/00-grc-gatewayclass.yaml
 kubectl apply -f apps/grc/01-grc-kong-api-gateway.yaml
 ```
 
@@ -824,9 +843,9 @@ Check Istio mTLS policies:
 
 ```bash
 kubectl get peerauthentication -A
-kubectl describe peerauthentication default -n retail-banking-team
-kubectl describe peerauthentication default -n payments-team
-kubectl describe peerauthentication default -n grc-team
+kubectl describe peerauthentication retail-banking-team-mtls-strict -n retail-banking-team
+kubectl describe peerauthentication payments-team-mtls-strict -n payments-team
+kubectl describe peerauthentication grc-team-mtls-strict -n grc-team
 ```
 
 Check sidecars:
@@ -899,7 +918,6 @@ kubectl delete -f apps/grc/sanction.yaml
 kubectl delete -f apps/grc/audit.yaml
 kubectl delete -f apps/grc/fraud.yaml
 kubectl delete -f apps/grc/01-grc-kong-api-gateway.yaml
-kubectl delete -f apps/grc/00-grc-gatewayclass.yaml
 kubectl delete -f apps/grc/grc-ns.yaml
 ```
 
@@ -913,7 +931,6 @@ kubectl delete -f apps/payments/fx-svc.yaml
 kubectl delete -f apps/payments/payment-gateway.yaml
 kubectl delete -f apps/payments/transfer-svc.yaml
 kubectl delete -f apps/payments/01-payments-kong-api-gateway.yaml
-kubectl delete -f apps/payments/00-payments-gatewayclass.yaml
 kubectl delete -f apps/payments/payments-ns.yaml
 ```
 
@@ -925,7 +942,6 @@ kubectl delete -f apps/retail-banking/statement-service.yaml
 kubectl delete -f apps/retail-banking/account-service.yaml
 kubectl delete -f apps/retail-banking/customer-profile-service.yaml
 kubectl delete -f apps/retail-banking/01-retail-banking-kong-api-gateway.yaml
-kubectl delete -f apps/retail-banking/00-retail-banking-gatewayclass.yaml
 ```
 
 Delete global resources:
@@ -934,7 +950,6 @@ Delete global resources:
 kubectl delete -f 2-global-httproute.yaml
 kubectl delete -f 3-downstream-proxy-services.yaml
 kubectl delete -f 1-kong-api-gateway-global.yaml
-kubectl delete -f 0-gatewayclass-global.yaml
 ```
 
 Uninstall Kong controller instances:
