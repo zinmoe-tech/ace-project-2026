@@ -1,0 +1,27 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  profile: empty
+
+  hub: docker.io/istio
+  tag: 1.29.2
+  revision: 1-29-2
+
+  meshConfig:
+    accessLogFile: /dev/stdout
+    enableTracing: true
+
+  components:
+    base:
+      enabled: true
+
+    pilot:
+      enabled: true
+
+    ingressGateways:
+    - name: istio-ingressgateway
+      enabled: false
+
+    egressGateways:
+    - name: istio-egressgateway
+      enabled: false

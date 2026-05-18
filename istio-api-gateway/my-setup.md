@@ -9,7 +9,11 @@ istioctl install --set profile=default \
   -y
 
 3 - Forward port of Istio Ingress Gateway pod
+<<<<<<< HEAD
 kubectl port-forward pod/istio-ingressgateway-7bd6855ff5-s45vp -n istio-system 15000:15000
+=======
+kubectl port-forward pod/istio-ingressgateway-85c8f4b645-8mfl6 -n istio-system 15000:15000
+>>>>>>> 38dc285 (add istio-gateway project)
 
 4 - Access the below address on your browser
 localhost:15000 >> config_dump
@@ -40,7 +44,11 @@ Available Commands:
   secret         Retrieves secret configuration for the Envoy in the specified pod
 
 7 - How to see data from seenvoy
+<<<<<<< HEAD
 kubectl port-forward pod/istio-ingressgateway-7bd6855ff5-s45vp -n istio-system 9901:15000
+=======
+kubectl port-forward pod/istio-ingressgateway-85c8f4b645-8mfl6 -n istio-system 9901:15000
+>>>>>>> 38dc285 (add istio-gateway project)
 
 seenvoy -t http://localhost:9901
 
