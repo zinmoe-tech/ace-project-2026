@@ -13,6 +13,7 @@ istioctl profile dump minimal > minimal-profile.yaml
 istioctl profile dump ambient > ambient-profile.yaml
 
 $ istioctl install -f default-profile.yaml --dry-run
+
         |\          
         | \         
         |  \        
@@ -27,6 +28,7 @@ $ istioctl install -f default-profile.yaml --dry-run
 ____________________
   \__       _____/  
      \_____/        
+
 
 ✔ Istio core installed ⛵️                                                                                                                                              
 ✔ Istiod installed 🧠                                                                                                                                                  
