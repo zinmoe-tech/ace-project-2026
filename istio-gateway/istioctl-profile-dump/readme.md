@@ -29,7 +29,6 @@ ____________________
   \__       _____/  
      \_____/        
 
-
 ✔ Istio core installed ⛵️                                                                                                                                              
 ✔ Istiod installed 🧠                                                                                                                                                  
 ✔ Ingress gateways installed 🛬                                                                                                                                        
