@@ -1,4 +1,5 @@
 Istio ≤ 1.23.x: istioctl profile list works.
+
 Istio ≥ 1.24.x: the entire istioctl profile subcommand tree is gone.
 
 istioctl profile dump demo > demo-profile.yaml
