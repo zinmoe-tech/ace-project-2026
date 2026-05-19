@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payments-team
+  # labels:
+  #   app.kubernetes.io/name: retail-banking-team
+  #   app.kubernetes.io/part-of: retail-banking

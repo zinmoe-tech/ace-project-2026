@@ -1,0 +1,51 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  components:
+    base:
+      enabled: true
+    pilot:
+      enabled: true
+    ingressGateways:
+    - name: retail-banking-istio-ingressgateway
+      enabled: true
+      namespace: retail-banking-team
+      # This puts a name tag on the retail-banking ingress gateway pods.
+      # A Gateway YAML must use selector.app with the same value below.
+      label:
+        app: retail-banking-istio-ingressgateway
+    - name: payments-istio-ingressgateway
+      enabled: true
+      namespace: payments-team
+      # This puts a name tag on the payments ingress gateway pods.
+      # A Gateway YAML must use selector.app with the same value below.
+      label:
+        app: payments-istio-ingressgateway
+    - name: grc-istio-ingressgateway
+      enabled: true
+      namespace: grc-team
+      # This puts a name tag on the grc ingress gateway pods.
+      # A Gateway YAML must use selector.app with the same value below.
+      label:
+        app: grc-istio-ingressgateway
+      k8s:
+        hpaSpec:
+          maxReplicas: 2
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+  hub: docker.io/istio
+  profile: minimal
+  tag: 1.29.2
+  values:
+    defaultRevision: ""
+    gateways:
+      istio-egressgateway: {}
+      istio-ingressgateway: {}
+    global:
+      configValidation: true
+      istioNamespace: istio-system
