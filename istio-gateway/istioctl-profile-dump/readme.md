@@ -25,7 +25,6 @@ $ istioctl install -f default-profile.yaml --dry-run
   /    ||        \  
  /     ||         \ 
 /______||__________\
-____________________
   \__       _____/  
      \_____/        
 
