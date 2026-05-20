@@ -3,5 +3,5 @@ kind: Namespace
 metadata:
   name: payments-team
   # labels:
-  #   app.kubernetes.io/name: retail-banking-team
-  #   app.kubernetes.io/part-of: retail-banking
+  #   app.kubernetes.io/name: payments-team
+  #   app.kubernetes.io/part-of: payments

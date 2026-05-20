@@ -1,0 +1,21 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: global-kong-globalgateway
+  namespace: global-kic
+spec:
+  # This connects the Gateway to 01-gatewayclass.yaml.
+  gatewayClassName: global-kong-gatewayclass
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    hostname: finance.hellocloud.io
+    allowedRoutes:
+      namespaces:
+        # Allow HTTPRoutes from other namespaces, such as global-api-gateway-ns.
+        from: All
+  # Optional: request a fixed load balancer IP if your controller supports it.
+  # addresses:
+  # - type: IPAddress
+  #   value: 172.18.255.194

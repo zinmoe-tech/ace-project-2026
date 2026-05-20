@@ -1,0 +1,39 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: grc-gateway
+  namespace: grc-team
+spec:
+  # This must match the label on grc-istio-ingressgateway pods.
+  selector:
+    app: grc-istio-ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - finance.hellocloud.io
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: grc-routes
+  namespace: grc-team
+spec:
+  hosts:
+  - finance.hellocloud.io
+  # Connect this VirtualService to the Gateway above.
+  gateways:
+  - grc-gateway
+  http:
+  # Kong rewrites /grc/audits to /audits before traffic arrives here.
+  - match:
+    - uri:
+        prefix: /audits
+    # Send matched traffic to the grc app Service.
+    route:
+    - destination:
+        host: fraud-svc.grc-team.svc.cluster.local
+        port:
+          number: 6061

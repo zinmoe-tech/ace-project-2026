@@ -1,0 +1,64 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: global-httproute
+  namespace: global-api-gateway-ns
+spec:
+  # Connect this HTTPRoute to the Kong Gateway in 02-global-gateway.yaml.
+  parentRefs:
+  - name: global-kong-globalgateway
+    namespace: global-kic
+  hostnames:
+  - finance.hellocloud.io
+  rules:
+  # Public URL: /retail-banking/accounts
+  # Kong sends it to the retail-banking Istio ingress gateway as: /accounts
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /retail-banking/accounts
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /accounts
+    # This backend Service is created by istio-gateway/minimal-profile.yaml.
+    backendRefs:
+    - name: retail-banking-istio-ingressgateway
+      namespace: retail-banking-team
+      port: 80
+  # Public URL: /payments/transactions
+  # Kong sends it to the payments Istio ingress gateway as: /transactions
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /payments/transactions
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /transactions
+    # This backend Service is created by istio-gateway/minimal-profile.yaml.
+    backendRefs:
+    - name: payments-istio-ingressgateway
+      namespace: payments-team
+      port: 80
+  # Public URL: /grc/audits
+  # Kong sends it to the grc Istio ingress gateway as: /audits
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /grc/audits
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /audits
+    # This backend Service is created by istio-gateway/minimal-profile.yaml.
+    backendRefs:
+    - name: grc-istio-ingressgateway
+      namespace: grc-team
+      port: 80

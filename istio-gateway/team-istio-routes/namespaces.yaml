@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: retail-banking-team
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payments-team
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grc-team
