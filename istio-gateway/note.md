@@ -146,3 +146,58 @@ curl --cacert ./ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   https://172.19.0.3:6443/openid/v1/jwks | jq
 
+
+              ┌─────────────────────────────────────────────────┐
+              │  BROWSER                                        │
+              │  finance.hellocloud.io/retail-banking/accounts  │
+              └───────────────────────┬─────────────────────────┘
+                                      │  /etc/hosts → 172.19.255.201
+                                      ▼
+╔══ namespace: global-kic ════════════════════════════════════════════╗
+║                                                                     ║
+║   Service: global-kic-gateway-proxy   ·   LB 172.19.255.201:80      ║
+║                          │                                          ║
+║                          ▼                                          ║
+║   Kong proxy POD   ◀╌╌╌╌╌  Gateway: global-kong-globalgateway       ║
+║                          │            (listener :80)                ║
+╚══════════════════════════╪═══════════════════════════════════════════╝
+                           │  GET /retail-banking/accounts
+                           ▼
+╔══ namespace: global-api-gateway-ns ═════════════════════════════════╗
+║                                                                     ║
+║   HTTPRoute: global-httproute                                       ║
+║     • match       PathPrefix /retail-banking/accounts               ║
+║     • URLRewrite  ──▶ /accounts                                     ║
+║                          │                                          ║
+╚══════════════════════════╪═══════════════════════════════════════════╝
+       ReferenceGrant       │  GET /accounts   (path now rewritten)
+  allow-global-httproute ╌╌╌┤
+   (authorizes cross-ns)    ▼
+╔══ namespace: retail-banking-team ═══════════════════════════════════╗
+║                                                                     ║
+║   Service: retail-banking-istio-ingressgateway  ·  port 80 ▶ 8080   ║
+║                          │                                          ║
+║                          ▼                                          ║
+║   Istio ingress gateway POD  (Envoy)                                ║
+║     listener :8080  +  route /accounts                              ║
+║          ▲                                                          ║
+║          ╎◀╌╌ Gateway: retail-banking-gateway         ──▶ LDS        ║
+║          ╎◀╌╌ VirtualService: retail-banking-routes   ──▶ RDS        ║
+║                          │  GET /accounts · Host: finance… · mTLS    ║
+║                          ▼                                           ║
+║   Service: account-svc   ·   port 8082 ▶ targetPort 9092            ║
+║                          │                                           ║
+║                          ▼                                           ║
+║   account-svc POD   [ app :9092  +  istio-proxy sidecar ]           ║
+║                          │  app upstream call                       ║
+║                          ▼                                           ║
+║   statement-svc   :8083                                             ║
+╚═════════════════════════════════════════════════════════════════════╝
+
+   CONTROL PLANE
+   istiod (istio-system) watches Gateway + VirtualService, compiles them
+   into Envoy listener (LDS) + route (RDS), and pushes to the ingress
+   gateway POD over xDS :15012.
+
+   ──▶  request traffic (data plane)
+   ╌╌▶  configuration / authorization (control plane)
