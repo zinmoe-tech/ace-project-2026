@@ -14,7 +14,7 @@ spec:
       enabled: false
   hub: docker.io/istio
   profile: empty
-  tag: 1.23.0
+  tag: 1.29.2
   values:
     defaultRevision: ""
     gateways:
