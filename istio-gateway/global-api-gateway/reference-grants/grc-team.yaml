@@ -1,15 +1,15 @@
+# Allows the global HTTPRoute (in global-api-gateway-ns) to reference
+# the grc IngressGateway Service (now in grc-ingress).
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
 metadata:
   name: allow-global-httproute
-  namespace: grc-team
+  namespace: grc-ingress
 spec:
-  # Allow the global HTTPRoute namespace to reference this namespace.
   from:
   - group: gateway.networking.k8s.io
     kind: HTTPRoute
     namespace: global-api-gateway-ns
-  # Allow only the grc ingress gateway Service as a backend.
   to:
   - group: ""
     kind: Service

@@ -16,7 +16,7 @@ spec:
   - matches:
     - path:
         type: PathPrefix
-        value: /retail-banking/accounts
+        value: /retail-banking/customer-profile-svc
     filters:
     - type: URLRewrite
       urlRewrite:
@@ -26,10 +26,8 @@ spec:
     # This backend Service is created by istio-gateway/minimal-profile.yaml.
     backendRefs:
     - name: retail-banking-istio-ingressgateway
-      namespace: retail-banking-team
+      namespace: retail-banking-ingress    # IngressGateway now in its own namespace
       port: 80
-  # Public URL: /payments/transactions
-  # Kong sends it to the payments Istio ingress gateway as: /transactions
   - matches:
     - path:
         type: PathPrefix
@@ -40,13 +38,10 @@ spec:
         path:
           type: ReplacePrefixMatch
           replacePrefixMatch: /transactions
-    # This backend Service is created by istio-gateway/minimal-profile.yaml.
     backendRefs:
     - name: payments-istio-ingressgateway
-      namespace: payments-team
+      namespace: payments-ingress          # IngressGateway now in its own namespace
       port: 80
-  # Public URL: /grc/audits
-  # Kong sends it to the grc Istio ingress gateway as: /audits
   - matches:
     - path:
         type: PathPrefix
@@ -57,8 +52,7 @@ spec:
         path:
           type: ReplacePrefixMatch
           replacePrefixMatch: /audits
-    # This backend Service is created by istio-gateway/minimal-profile.yaml.
     backendRefs:
     - name: grc-istio-ingressgateway
-      namespace: grc-team
+      namespace: grc-ingress               # IngressGateway now in its own namespace
       port: 80

@@ -1,0 +1,192 @@
+# ---------------------------------------------------------------
+# AuthorizationPolicy — Group + Role Enforcement
+#
+# Access model:
+#   senior-group  →  ALL namespaces (retail-banking, payments, grc)
+#   junior-group  →  own namespace only (matched by role)
+#
+# Two policies per namespace:
+#   DENY  — blocks valid JWT tokens with wrong group/role
+#   ALLOW — permits valid JWT tokens with correct group or role
+#
+# Why DENY is needed:
+#   SPIFFE/mTLS policies allow IngressGateway → services by pod identity.
+#   Without explicit DENY, a junior token reaches the wrong namespace
+#   because SPIFFE ALLOW matches regardless of JWT content.
+#
+# Internal service calls (account-svc → statement-svc) carry no JWT,
+# so requestPrincipals is empty → DENY rules never fire for them. ✅
+# ---------------------------------------------------------------
+
+# ─────────────────────────────────────────────────────────────
+# retail-banking-team
+# ─────────────────────────────────────────────────────────────
+
+# Block requests with NO JWT at the mesh entry point
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-retail-banking
+  namespace: retail-banking-team
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+# Block valid JWT tokens that do NOT belong to this namespace
+# Fires when: has JWT  AND  not senior-group  AND  not retail-banking-user
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-retail-banking
+  namespace: retail-banking-team
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["senior-group"]
+        - key: "request.auth.claims[realm_access][roles]"
+          notValues: ["retail-banking-user"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-retail-banking
+  namespace: retail-banking-team
+spec:
+  action: ALLOW
+  rules:
+    # senior-group: access all services
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["senior-group"]
+    # junior with retail-banking-user role
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[realm_access][roles]"
+          values: ["retail-banking-user"]
+
+---
+
+# ─────────────────────────────────────────────────────────────
+# payments-team
+# ─────────────────────────────────────────────────────────────
+
+# Block valid JWT tokens that do NOT belong to this namespace
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-payments
+  namespace: payments-team
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["senior-group"]
+        - key: "request.auth.claims[realm_access][roles]"
+          notValues: ["payments-user"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-payments
+  namespace: payments-team
+spec:
+  action: ALLOW
+  rules:
+    # senior-group: access all services
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["senior-group"]
+    # junior with payments-user role
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[realm_access][roles]"
+          values: ["payments-user"]
+
+---
+
+# ─────────────────────────────────────────────────────────────
+# grc-team
+# ─────────────────────────────────────────────────────────────
+
+# Block valid JWT tokens that do NOT belong to this namespace
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-grc
+  namespace: grc-team
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["senior-group"]
+        - key: "request.auth.claims[realm_access][roles]"
+          notValues: ["grc-user"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-grc
+  namespace: grc-team
+spec:
+  action: ALLOW
+  rules:
+    # senior-group: access all services
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["senior-group"]
+    # junior with grc-user role
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[realm_access][roles]"
+          values: ["grc-user"]

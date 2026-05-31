@@ -2,9 +2,8 @@ apiVersion: networking.istio.io/v1
 kind: Gateway
 metadata:
   name: payments-gateway
-  namespace: payments-team
+  namespace: payments-ingress
 spec:
-  # This must match the label on payments-istio-ingressgateway pods.
   selector:
     app: payments-istio-ingressgateway
   servers:
@@ -23,15 +22,12 @@ metadata:
 spec:
   hosts:
   - finance.hellocloud.io
-  # Connect this VirtualService to the Gateway above.
   gateways:
-  - payments-gateway
+  - payments-ingress/payments-gateway   # cross-namespace reference
   http:
-  # Kong rewrites /payments/transactions to /transactions before traffic arrives here.
   - match:
     - uri:
         prefix: /transactions
-    # Send matched traffic to the payments app Service.
     route:
     - destination:
         host: transfer-svc.payments-team.svc.cluster.local

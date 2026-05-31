@@ -1,19 +1,21 @@
-# apiVersion: networking.istio.io/v1
-# kind: Gateway
-# metadata:
-#   name: retail-banking-gateway
-#   namespace: retail-banking-team
-# spec:
-#   # This must match the label on retail-banking-istio-ingressgateway pods.
-#   selector:
-#     app: retail-banking-istio-ingressgateway
-#   servers:
-#   - port:
-#       number: 80
-#       name: http
-#       protocol: HTTP
-#     hosts:
-#     - finance.hellocloud.io
+# Gateway lives in retail-banking-ingress (same namespace as the IngressGateway pod).
+# VirtualService lives in retail-banking-team and references the Gateway by full path:
+#   <gateway-namespace>/<gateway-name>
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: retail-banking-gateway
+  namespace: retail-banking-ingress
+spec:
+  selector:
+    app: retail-banking-istio-ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - finance.hellocloud.io
 ---
 apiVersion: networking.istio.io/v1
 kind: VirtualService
@@ -23,17 +25,14 @@ metadata:
 spec:
   hosts:
   - finance.hellocloud.io
-  # Connect this VirtualService to the Gateway above.
   gateways:
-  - retail-banking-gateway
+  - retail-banking-ingress/retail-banking-gateway   # cross-namespace reference
   http:
-  # Kong rewrites /retail-banking/accounts to /accounts before traffic arrives here.
   - match:
     - uri:
         prefix: /accounts
-    # Send matched traffic to the retail-banking app Service.
     route:
     - destination:
-        host: account-svc.retail-banking-team.svc.cluster.local
+        host: customer-profile-svc.retail-banking-team.svc.cluster.local
         port:
-          number: 8082
+          number: 8081

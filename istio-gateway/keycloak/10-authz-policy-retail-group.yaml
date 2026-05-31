@@ -1,0 +1,645 @@
+# ─────────────────────────────────────────────────────────────
+# retail-banking-team
+# Pods: customer-profile-svc (9091), account-svc (9092), statement-svc (9093)
+# ─────────────────────────────────────────────────────────────
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-customer-profile-svc
+  namespace: retail-banking-team
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-account-svc
+  namespace: retail-banking-team
+spec:
+  selector:
+    matchLabels:
+      app: account-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9092"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-statement-svc
+  namespace: retail-banking-team
+spec:
+  selector:
+    matchLabels:
+      app: statement-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9093"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-customer-profile-svc
+  namespace: retail-banking-team
+spec:
+  selector:
+    matchLabels:
+      app: customer-profile-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["retail-group"]
+        - key: "request.auth.claims[preferred_username]"
+          notValues: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-account-svc
+  namespace: retail-banking-team
+spec:
+  selector:
+    matchLabels:
+      app: account-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["retail-group"]
+        - key: "request.auth.claims[preferred_username]"
+          notValues: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9092"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-statement-svc
+  namespace: retail-banking-team
+spec:
+  selector:
+    matchLabels:
+      app: statement-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["retail-group"]
+        - key: "request.auth.claims[preferred_username]"
+          notValues: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9093"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-customer-profile-svc
+  namespace: retail-banking-team
+spec:
+  selector:
+    matchLabels:
+      app: customer-profile-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["retail-group"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-account-svc
+  namespace: retail-banking-team
+spec:
+  selector:
+    matchLabels:
+      app: account-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["retail-group"]
+      to:
+        - operation:
+            ports: ["9092"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-statement-svc
+  namespace: retail-banking-team
+spec:
+  selector:
+    matchLabels:
+      app: statement-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["retail-group"]
+      to:
+        - operation:
+            ports: ["9093"]
+
+---
+
+# ─────────────────────────────────────────────────────────────
+# payments-team
+# Pods: transfer-svc (9091), payment-gateway-svc (9092), fx-svc (9093)
+# ─────────────────────────────────────────────────────────────
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-transfer-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: transfer-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-payment-gateway-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: payment-gateway-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9092"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-fx-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: fx-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9093"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-transfer-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: transfer-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["payments-group"]
+        - key: "request.auth.claims[preferred_username]"
+          notValues: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-payment-gateway-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: payment-gateway-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["payments-group"]
+        - key: "request.auth.claims[preferred_username]"
+          notValues: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9092"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-fx-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: fx-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["payments-group"]
+        - key: "request.auth.claims[preferred_username]"
+          notValues: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9093"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-transfer-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: transfer-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["payments-group"]
+        - key: "request.auth.claims[preferred_username]"
+          values: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-payment-gateway-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: payment-gateway-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["payments-group"]
+        - key: "request.auth.claims[preferred_username]"
+          values: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9092"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-fx-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: fx-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["payments-group"]
+        - key: "request.auth.claims[preferred_username]"
+          values: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9093"]
+
+---
+
+# ─────────────────────────────────────────────────────────────
+# grc-team
+# Pods: fraud-svc (9091), audit-svc (9092), sanction-svc (9093)
+# ─────────────────────────────────────────────────────────────
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-fraud-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: fraud-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-audit-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: audit-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9092"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-no-jwt-sanction-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: sanction-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+      to:
+        - operation:
+            ports: ["9093"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-fraud-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: fraud-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["grc-group"]
+        - key: "request.auth.claims[preferred_username]"
+          notValues: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-audit-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: audit-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["grc-group"]
+        - key: "request.auth.claims[preferred_username]"
+          notValues: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9092"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-wrong-jwt-sanction-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: sanction-svc
+  action: DENY
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          notValues: ["grc-group"]
+        - key: "request.auth.claims[preferred_username]"
+          notValues: ["admin-user"]
+      to:
+        - operation:
+            ports: ["9093"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-fraud-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: fraud-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["grc-group"]
+      to:
+        - operation:
+            ports: ["9091"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-audit-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: audit-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["grc-group"]
+      to:
+        - operation:
+            ports: ["9092"]
+
+---
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-sanction-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: sanction-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals:
+              - "http://keycloak.hellocloud.io:8080/realms/hellocloudbank/*"
+      when:
+        - key: "request.auth.claims[groups]"
+          values: ["grc-group"]
+      to:
+        - operation:
+            ports: ["9093"]

@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------
+# Telemetry — access logging for all 3 namespaces
+#
+# Logs appear in each pod's istio-proxy container:
+#   kubectl logs <pod> -n retail-banking-team -c istio-proxy
+#   kubectl logs <pod> -n payments-team -c istio-proxy
+#   kubectl logs <pod> -n grc-team -c istio-proxy
+# ---------------------------------------------------------------
+
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: retail-banking-access-logs
+  namespace: retail-banking-team
+spec:
+  accessLogging:
+  - providers:
+    - name: envoy
+
+---
+
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: payments-access-logs
+  namespace: payments-team
+spec:
+  accessLogging:
+  - providers:
+    - name: envoy
+
+---
+
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: grc-access-logs
+  namespace: grc-team
+spec:
+  accessLogging:
+  - providers:
+    - name: envoy

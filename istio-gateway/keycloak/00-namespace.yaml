@@ -1,0 +1,9 @@
+# Keycloak runs in its own namespace.
+# No istio-injection — Keycloak is the identity provider,
+# it lives outside the mesh so it can be reached freely.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+  labels:
+    kubernetes.io/metadata.name: keycloak

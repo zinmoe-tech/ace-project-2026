@@ -1,15 +1,15 @@
+# Allows the global HTTPRoute (in global-api-gateway-ns) to reference
+# the retail-banking IngressGateway Service (now in retail-banking-ingress).
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
 metadata:
   name: allow-global-httproute
-  namespace: retail-banking-team
+  namespace: retail-banking-ingress
 spec:
-  # Allow the global HTTPRoute namespace to reference this namespace.
   from:
   - group: gateway.networking.k8s.io
     kind: HTTPRoute
     namespace: global-api-gateway-ns
-  # Allow only the retail-banking ingress gateway Service as a backend.
   to:
   - group: ""
     kind: Service

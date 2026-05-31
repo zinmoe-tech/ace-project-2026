@@ -1,0 +1,90 @@
+# ---------------------------------------------------------------
+# Keycloak Deployment — Dev Mode
+#
+# Dev mode means:
+#   - No HTTPS required (HTTP only) — good for local/Kind cluster
+#   - No external database needed (uses embedded H2 database)
+#   - NOT for production (data is lost when pod restarts)
+#
+# For production: use PostgreSQL + TLS + proper secrets management
+# ---------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.0.0
+          # start-dev = development mode (HTTP, embedded DB)
+          args: ["start-dev"]
+          env:
+            # Admin credentials — change in production!
+            - name: KEYCLOAK_ADMIN
+              value: "admin"
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              value: "admin"
+            # Allow Keycloak to run behind a proxy (Kong/Istio)
+            - name: KC_PROXY
+              value: "edge"
+            # HTTP port
+            - name: KC_HTTP_PORT
+              value: "8080"
+            # Hostname — sets the "iss" claim in JWT tokens.
+            # Must match the URL clients use to reach Keycloak.
+            # This is added to /etc/hosts on your machine → keycloak.hellocloud.io
+            - name: KC_HOSTNAME
+              value: "keycloak.hellocloud.io"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_HOSTNAME_STRICT_HTTPS
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8080
+          # Wait until Keycloak is fully started before accepting traffic
+          readinessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+
+---
+
+# Keycloak Service
+# LoadBalancer — MetalLB assigns an external IP so it's reachable from your machine.
+# Add the assigned IP to /etc/hosts as: <IP>  keycloak.hellocloud.io
+# Run: kubectl get svc keycloak -n keycloak  → check EXTERNAL-IP
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: LoadBalancer

@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------
+# AuthorizationPolicy — payments-ingress namespace
+# ---------------------------------------------------------------
+# 1. Deny all traffic in retail-banking-ingress by default
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payments-ingress-deny-all
+  namespace: payments-ingress
+spec: {}
+
+---
+# 2. Allow Kong → retail-banking IngressGateway (port 8080)
+#    Kong has no Istio sidecar so no SPIFFE principal — port-only check.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-kong-to-payments-ingressgateway
+  namespace: payments-ingress
+spec:
+  selector:
+    matchLabels:
+      app: payments-istio-ingressgateway
+  action: ALLOW
+  rules:
+  - to:
+    - operation:
+        ports: ["8080"]
+
+---
+# 3. Allow kubelet health check on port 15021
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-healthcheck-payments-ingressgateway
+  namespace: payments-ingress
+spec:
+  selector:
+    matchLabels:
+      app: payments-istio-ingressgateway
+  action: ALLOW
+  rules:
+  - to:
+    - operation:
+        ports: ["15021"]
+
+# 4. Allow promethus on port 15090
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-prometheus-ingressgateway
+  namespace: payments-ingress
+spec:
+  selector:
+    matchLabels:
+      app: payments-istio-ingressgateway
+  action: ALLOW
+  rules:
+  - to:
+    - operation:
+        ports: ["15090"]

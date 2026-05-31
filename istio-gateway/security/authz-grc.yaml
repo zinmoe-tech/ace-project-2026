@@ -1,0 +1,122 @@
+# ---------------------------------------------------------------
+# AuthorizationPolicy — grc-team
+# Strategy: deny-all by default, then explicit allows
+# ---------------------------------------------------------------
+
+# 1. Deny ALL traffic in grc-team by default
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: grc-deny-all
+  namespace: grc-team
+spec: {}
+
+---
+
+# 2. Allow grc IngressGateway → fraud-svc (port 6061)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingressgateway-to-fraud-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: fraud-svc
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/grc-ingress/sa/grc-istio-ingressgateway-service-account"
+    to:
+    - operation:
+        ports: ["9091"]   # container port (service port 6061 → targetPort 9091)
+
+---
+
+# 5. Allow grc IngressGateway → audit-svc (port 6062)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingressgateway-to-audit-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: audit-svc
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/grc-ingress/sa/grc-istio-ingressgateway-service-account"
+    to:
+    - operation:
+        ports: ["9092"]   # container port (service port 6062 → targetPort 9092)
+
+---
+
+# 6. Allow grc IngressGateway → sanction-svc (port 6063)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingressgateway-to-sanction-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: sanction-svc
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/grc-ingress/sa/grc-istio-ingressgateway-service-account"
+    to:
+    - operation:
+        ports: ["9093"]   # container port (service port 6063 → targetPort 9093)
+
+---
+
+# 7. Allow fraud-svc → audit-svc (service-to-service)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-fraud-svc-to-audit-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: audit-svc                  # destination pod — policy enforced here
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/grc-team/sa/fraud-svc"   # source: fraud-svc SPIFFE
+    to:
+    - operation:
+        ports: ["9092"]               # audit-svc container port
+
+---
+
+# 8. Allow audit-svc → sanction-svc (service-to-service)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-audit-svc-to-sanction-svc
+  namespace: grc-team
+spec:
+  selector:
+    matchLabels:
+      app: sanction-svc               # destination pod — policy enforced here
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/grc-team/sa/audit-svc"   # source: audit-svc SPIFFE
+    to:
+    - operation:
+        ports: ["9093"]               # sanction-svc container port

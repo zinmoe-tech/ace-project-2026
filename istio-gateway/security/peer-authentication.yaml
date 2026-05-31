@@ -1,0 +1,11 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: mesh-mtls-strict
+  namespace: istio-system
+spec:
+  # Enforces mTLS across the entire mesh.
+  # All service-to-service traffic must be mutually authenticated
+  # and encrypted. Plain HTTP between services will be rejected.
+  mtls:
+    mode: STRICT

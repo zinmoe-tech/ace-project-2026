@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------
+# AuthorizationPolicy — retail-banking-ingress namespace
+#
+# This namespace holds ONLY the Istio IngressGateway pod.
+# It is separated from retail-banking-team (microservices).
+#
+# Policies here:
+#   1. Deny all by default
+#   2. Allow Kong → IngressGateway (Kong has no sidecar, port-only check)
+#   3. Allow kubelet health checks on port 15021
+# ---------------------------------------------------------------
+
+# zinmoe@zinmoe:~/Desktop/ace-project-2026/ace-project-2026$ istioctl proxy-config listeners retail-banking-istio-ingressgateway-69b588b774-wvc4p -n retail-banking-ingress
+# ADDRESSES PORT  MATCH DESTINATION
+# 0.0.0.0   8080  ALL   Route: http.8080
+# 0.0.0.0   15021 ALL   Inline Route: /healthz/ready*
+# 0.0.0.0   15090 ALL   Inline Route: /stats/prometheus*
+
+# 1. Deny all traffic in retail-banking-ingress by default
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: retail-banking-ingress-deny-all
+  namespace: retail-banking-ingress
+spec: {}
+
+---
+
+# 2. Allow Kong → retail-banking IngressGateway (port 8080)
+#    Kong has no Istio sidecar so no SPIFFE principal — port-only check.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-kong-to-retail-banking-ingressgateway
+  namespace: retail-banking-ingress
+spec:
+  selector:
+    matchLabels:
+      app: retail-banking-istio-ingressgateway
+  action: ALLOW
+  rules:
+  - to:
+    - operation:
+        ports: ["8080"]
+
+---
+
+# 3. Allow kubelet health check on port 15021
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-healthcheck-retail-banking-ingressgateway
+  namespace: retail-banking-ingress
+spec:
+  selector:
+    matchLabels:
+      app: retail-banking-istio-ingressgateway
+  action: ALLOW
+  rules:
+  - to:
+    - operation:
+        ports: ["15021"]
+
+# 4. Allow promethus on port 15090
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-prometheus-ingressgateway
+  namespace: retail-banking-ingress
+spec:
+  selector:
+    matchLabels:
+      app: retail-banking-istio-ingressgateway
+  action: ALLOW
+  rules:
+  - to:
+    - operation:
+        ports: ["15090"]

@@ -9,26 +9,28 @@ spec:
     ingressGateways:
     - name: retail-banking-istio-ingressgateway
       enabled: true
-      namespace: retail-banking-team
-      # This puts a name tag on the retail-banking ingress gateway pods.
-      # A Gateway YAML must use selector.app with the same value below.
+      namespace: retail-banking-ingress    # separated from microservice namespace
       label:
         app: retail-banking-istio-ingressgateway
+      k8s:
+        service:
+          type: ClusterIP                  # No external IP — Kong reaches this internally
     - name: payments-istio-ingressgateway
       enabled: true
-      namespace: payments-team
-      # This puts a name tag on the payments ingress gateway pods.
-      # A Gateway YAML must use selector.app with the same value below.
+      namespace: payments-ingress          # separated from microservice namespace
       label:
         app: payments-istio-ingressgateway
+      k8s:
+        service:
+          type: ClusterIP                  # No external IP — Kong reaches this internally
     - name: grc-istio-ingressgateway
       enabled: true
-      namespace: grc-team
-      # This puts a name tag on the grc ingress gateway pods.
-      # A Gateway YAML must use selector.app with the same value below.
+      namespace: grc-ingress               # separated from microservice namespace
       label:
         app: grc-istio-ingressgateway
       k8s:
+        service:
+          type: ClusterIP                  # No external IP — Kong reaches this internally
         hpaSpec:
           maxReplicas: 2
         resources:

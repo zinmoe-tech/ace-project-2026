@@ -116,7 +116,7 @@ kubectl get pods -n grc-team
 ## 5. Deploy Global Kong Gateway Routes
 
 ```bash
-kubectl apply -k istio-gateway/global-api-gateway
+kubectl apply -f istio-gateway/global-api-gateway
 ```
 
 This creates:

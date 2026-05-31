@@ -201,3 +201,5 @@ curl --cacert ./ca.crt \
 
    ──▶  request traffic (data plane)
    ╌╌▶  configuration / authorization (control plane)
+
+    echo "172.18.255.190  finance.hellocloud.io" | sudo tee -a /etc/hosts

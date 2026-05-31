@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------
+# AuthorizationPolicy — grc-ingress namespace
+# ---------------------------------------------------------------
+
+# 1. Deny all traffic in grc-ingress by default
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: grc-ingress-deny-all
+  namespace: grc-ingress
+spec: {}
+
+---
+# 2. Allow Kong → grc IngressGateway (port 8080)
+#    Kong has no Istio sidecar so no SPIFFE principal — port-only check.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-kong-to-grc-ingressgateway
+  namespace: grc-ingress
+spec:
+  selector:
+    matchLabels:
+      app: grc-istio-ingressgateway
+  action: ALLOW
+  rules:
+  - to:
+    - operation:
+        ports: ["8080"]
+
+---
+# 3. Allow kubelet health check on port 15021
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-healthcheck-grc-ingressgateway
+  namespace: grc-ingress
+spec:
+  selector:
+    matchLabels:
+      app: grc-istio-ingressgateway
+  action: ALLOW
+  rules:
+  - to:
+    - operation:
+        ports: ["15021"]
+
+---
+# 4. Allow promethus on port 15090
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-prometheus-ingressgateway
+  namespace: grc-ingress
+spec:
+  selector:
+    matchLabels:
+      app: grc-istio-ingressgateway
+  action: ALLOW
+  rules:
+  - to:
+    - operation:
+        ports: ["15090"]

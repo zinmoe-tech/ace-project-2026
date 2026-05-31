@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------
+# RequestAuthentication — Istio JWT Validation
+#
+# What this does:
+#   Tells Istio's sidecar proxies HOW to validate JWT tokens.
+#   Istio downloads Keycloak's public keys from the JWKS URI
+#   and uses them to verify the token signature on every request.
+#
+# If a request carries an INVALID token → rejected (401)
+# If a request carries NO token → passed through (not rejected here)
+#   → AuthorizationPolicy (03-authz-policy-jwt.yaml) handles that.
+# ---------------------------------------------------------------
+
+# --- retail-banking-team ---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: keycloak-jwt
+  # Applies to ALL pods in retail-banking-team
+  namespace: retail-banking-team
+spec:
+  jwtRules:
+    - # Must match the "iss" claim inside the JWT token
+      # issuer must match the "iss" claim inside the JWT token.
+      # KC_HOSTNAME=keycloak.hellocloud.io sets this in the token.
+      # jwksUri uses cluster-internal DNS — Istio sidecar fetches keys from inside the cluster.
+      issuer: "http://keycloak.hellocloud.io:8080/realms/hellocloudbank"
+      jwksUri: "http://keycloak.keycloak.svc.cluster.local:8080/realms/hellocloudbank/protocol/openid-connect/certs"
+      # Where to look for the token in the request
+      # Default is Authorization: Bearer <token>
+      forwardOriginalToken: true  # forward token to upstream services
+
+---
+
+# --- payments-team ---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: keycloak-jwt
+  namespace: payments-team
+spec:
+  jwtRules:
+    - issuer: "http://keycloak.hellocloud.io:8080/realms/hellocloudbank"
+      jwksUri: "http://keycloak.keycloak.svc.cluster.local:8080/realms/hellocloudbank/protocol/openid-connect/certs"
+      forwardOriginalToken: true
+
+---
+
+# --- grc-team ---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: keycloak-jwt
+  namespace: grc-team
+spec:
+  jwtRules:
+    - issuer: "http://keycloak.hellocloud.io:8080/realms/hellocloudbank"
+      jwksUri: "http://keycloak.keycloak.svc.cluster.local:8080/realms/hellocloudbank/protocol/openid-connect/certs"
+      forwardOriginalToken: true
+
+
+# Client sends JWT token:
+#   eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+#          │
+#          │  This token is SIGNED by Keycloak's private key
+#          │  Istio needs Keycloak's PUBLIC key to verify it
+#          │
+#          ▼
+#   jwksUri: http://keycloak.keycloak.svc.cluster.local:8080
+#            /realms/hellocloudbank/protocol/openid-connect/certs
+#          │
+#          │  Istio downloads the public keys from here
+#          │  and stores them in cache
+#          │
+#          ▼
+#   Envoy sidecar verifies:
+#     signature valid? ✅ → pass to AuthorizationPolicy
+#     signature invalid? ❌ → 401 immediately

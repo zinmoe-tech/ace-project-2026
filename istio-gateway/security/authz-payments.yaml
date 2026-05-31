@@ -1,0 +1,122 @@
+# ---------------------------------------------------------------
+# AuthorizationPolicy — payments-team
+# Strategy: deny-all by default, then explicit allows
+# ---------------------------------------------------------------
+
+# 1. Deny ALL traffic in payments-team by default
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payments-deny-all
+  namespace: payments-team
+spec: {}
+
+---
+
+# 2. Allow payments IngressGateway → transfer-svc (port 7071)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingressgateway-to-transfer-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: transfer-svc
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/payments-ingress/sa/payments-istio-ingressgateway-service-account"
+    to:
+    - operation:
+        ports: ["9091"]   # container port (service port 7071 → targetPort 9091)
+
+---
+
+# 5. Allow payments IngressGateway 
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingressgateway-to-payment-gateway-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: payment-gateway-svc
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/payments-ingress/sa/payments-istio-ingressgateway-service-account"
+    to:
+    - operation:
+        ports: ["9092"]   # container port (service port 7072 → targetPort 9092)
+
+---
+
+# 6. Allow payments IngressGateway → fx-svc (port 7073)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingressgateway-to-fx-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: fx-svc
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/payments-ingress/sa/payments-istio-ingressgateway-service-account"
+    to:
+    - operation:
+        ports: ["9093"]   # container port (service port 7073 → targetPort 9093)
+
+---
+
+# 7. Allow transfer-svc → payment-gateway-svc (service-to-service)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-transfer-svc-to-payment-gateway-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: payment-gateway-svc        # destination pod — policy enforced here
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/payments-team/sa/transfer-svc"   # source: transfer-svc SPIFFE
+    to:
+    - operation:
+        ports: ["9092"]               # payment-gateway-svc container port
+
+---
+
+# 8. Allow payment-gateway-svc → fx-svc (service-to-service)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-payment-gateway-svc-to-fx-svc
+  namespace: payments-team
+spec:
+  selector:
+    matchLabels:
+      app: fx-svc                     # destination pod — policy enforced here
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/payments-team/sa/payment-gateway-svc"  # source: payment-gateway-svc SPIFFE
+    to:
+    - operation:
+        ports: ["9093"]               # fx-svc container port
