@@ -17,28 +17,7 @@ usage is around `80m` per pod.
 
 ## Diagram
 
-```mermaid
-flowchart TB
-    user[User or load test client]
-    kong[Global Kong Gateway]
-    istio[Team Istio Ingress Gateway]
-    svc[Kubernetes Service]
-    deploy[Application Deployment]
-    pods[Application Pods]
-
-    metrics[metrics-server]
-    hpa[HorizontalPodAutoscaler]
-    controller[kube-controller-manager]
-
-    user --> kong --> istio --> svc --> pods
-    deploy --> pods
-
-    pods -. CPU usage .-> metrics
-    metrics -. metrics.k8s.io .-> hpa
-    hpa -. desired replicas .-> controller
-    controller -. scales .-> deploy
-    deploy --> pods
-```
+[asset/autoscaling.md](asset/autoscaling.png)
 
 ## 1. Confirm The Application Is Deployed
 
