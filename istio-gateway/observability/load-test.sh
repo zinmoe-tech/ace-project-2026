@@ -1,81 +1,104 @@
 #!/bin/bash
 # ---------------------------------------------------------------
-# Non-stop load generator — runs until Ctrl+C
-# Sends traffic to all 3 namespaces simultaneously
+# Non-stop load generator using hey
+# Only hits the 3 routed endpoints (as per Kong HTTPRoute config)
+#   /retail-banking/customer-profile-svc  → john token
+#   /payments/transactions                → steve token
+#   /grc/audits                           → messi token
 # ---------------------------------------------------------------
 
 KONG_IP="172.18.255.190"
+KEYCLOAK_URL="http://keycloak.hellocloud.io:8080"
+CONCURRENCY=300
 
-echo "Fetching tokens..."
+get_token() {
+  curl -s -X POST "$KEYCLOAK_URL/realms/hellocloudbank/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=$1&client_secret=$2&username=$3&password=$4&grant_type=password" \
+    | jq -r '.access_token'
+}
 
-JOHN_TOKEN=$(curl -s -X POST \
-  http://keycloak.hellocloud.io:8080/realms/hellocloudbank/protocol/openid-connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=retail-banking-client&client_secret=c9bI4S3HAcB9LYaJES241py61Wc5Ues1&username=john&password=john123&grant_type=password" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+fetch_tokens() {
+  echo "Fetching tokens..."
+  JOHN_TOKEN=$(get_token     retail-banking-client c9bI4S3HAcB9LYaJES241py61Wc5Ues1 john  john123)
+  MESSI_TOKEN=$(get_token    grc-client            d3PFwfYOzTfCOqyMeUBAbMwM25XZPvtq messi messi123)
+  PAYMENTS_TOKEN=$(get_token payments-client       KkCk1GmVTmNADrr0Qy2LjlTiQWghUOMR steve steve123)
 
-MESSI_TOKEN=$(curl -s -X POST \
-  http://keycloak.hellocloud.io:8080/realms/hellocloudbank/protocol/openid-connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=grc-client&client_secret=d3PFwfYOzTfCOqyMeUBAbMwM25XZPvtq&username=messi&password=messi123&grant_type=password" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+  [[ "$JOHN_TOKEN"     == "null" || -z "$JOHN_TOKEN"     ]] && echo "ERROR: john token failed"     && exit 1
+  [[ "$MESSI_TOKEN"    == "null" || -z "$MESSI_TOKEN"    ]] && echo "ERROR: messi token failed"    && exit 1
+  [[ "$PAYMENTS_TOKEN" == "null" || -z "$PAYMENTS_TOKEN" ]] && echo "ERROR: payments token failed" && exit 1
+  echo "Tokens OK."
+}
 
-PAYMENTS_TOKEN=$(curl -s -X POST \
-  http://keycloak.hellocloud.io:8080/realms/hellocloudbank/protocol/openid-connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=payments-client&client_secret=KkCk1GmVTmNADrr0Qy2LjlTiQWghUOMR&username=steve&password=steve123&grant_type=password" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+verify_endpoints() {
+  echo ""
+  echo "Verifying endpoints..."
+  printf "%-55s %s\n" ENDPOINT STATUS
+  echo "-----------------------------------------------------------"
 
-echo "Tokens ready. Starting non-stop traffic. Press Ctrl+C to stop."
+  check() {
+    local code
+    code=$(curl -s -o /dev/null -w "%{http_code}" \
+      -H "Host: finance.hellocloud.io" \
+      -H "Authorization: Bearer $2" \
+      "http://$KONG_IP$1")
+    printf "%-55s HTTP %s\n" "$1" "$code"
+    [[ "$code" == "200" ]]
+  }
+
+  local all_ok=true
+  check /retail-banking/customer-profile-svc "$JOHN_TOKEN"     || all_ok=false
+  check /payments/transactions               "$PAYMENTS_TOKEN" || all_ok=false
+  check /grc/audits                          "$MESSI_TOKEN"    || all_ok=false
+
+  echo ""
+  if $all_ok; then
+    echo "All endpoints OK. Starting load test..."
+  else
+    echo "Some endpoints failed. Fix above errors before running load."
+    exit 1
+  fi
+}
+
+run_worker() {
+  local url=$1 token=$2
+  while true; do
+    hey -n 10000 -c $CONCURRENCY \
+      -H "Host: finance.hellocloud.io" \
+      -H "Authorization: Bearer $token" \
+      "http://$KONG_IP$url" > /dev/null 2>&1
+  done
+}
+
+start_workers() {
+  run_worker /retail-banking/customer-profile-svc "$JOHN_TOKEN"     &
+  run_worker /payments/transactions               "$PAYMENTS_TOKEN" &
+  run_worker /grc/audits                          "$MESSI_TOKEN"    &
+  echo "3 workers started ($CONCURRENCY concurrent each = $((CONCURRENCY * 3)) total connections)"
+}
+
+stop_workers() {
+  kill $(jobs -p) 2>/dev/null
+  wait 2>/dev/null
+}
+
+trap 'echo ""; echo "Stopping..."; stop_workers; exit 0' INT
+
+fetch_tokens
+verify_endpoints
+start_workers
+
+echo "Press Ctrl+C to stop."
 echo ""
 
-ROUND=0
+# Refresh tokens every 55 min and restart workers
 while true; do
-  ROUND=$((ROUND+1))
-  echo -ne "\rRound $ROUND — sending 90 parallel requests..."
-
-  # retail-banking
-  for i in $(seq 1 30); do
-    curl -s -o /dev/null \
-      -H "Host: finance.hellocloud.io" \
-      -H "Authorization: Bearer $JOHN_TOKEN" \
-      http://$KONG_IP/retail-banking/customer-profile-svc &
-  done
-
-  # payments
-  for i in $(seq 1 30); do
-    curl -s -o /dev/null \
-      -H "Host: finance.hellocloud.io" \
-      -H "Authorization: Bearer $PAYMENTS_TOKEN" \
-      http://$KONG_IP/payments/transactions &
-  done
-
-  # grc
-  for i in $(seq 1 30); do
-    curl -s -o /dev/null \
-      -H "Host: finance.hellocloud.io" \
-      -H "Authorization: Bearer $MESSI_TOKEN" \
-      http://$KONG_IP/grc/audits &
-  done
-
-  # Refresh tokens every 50 rounds (~every 50 iterations)
-  if [ $((ROUND % 50)) -eq 0 ]; then
-    echo ""
-    echo "Refreshing tokens..."
-    JOHN_TOKEN=$(curl -s -X POST \
-      http://keycloak.hellocloud.io:8080/realms/hellocloudbank/protocol/openid-connect/token \
-      -H "Content-Type: application/x-www-form-urlencoded" \
-      -d "client_id=retail-banking-client&client_secret=c9bI4S3HAcB9LYaJES241py61Wc5Ues1&username=john&password=john123&grant_type=password" \
-      | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-    MESSI_TOKEN=$(curl -s -X POST \
-      http://keycloak.hellocloud.io:8080/realms/hellocloudbank/protocol/openid-connect/token \
-      -H "Content-Type: application/x-www-form-urlencoded" \
-      -d "client_id=grc-client&client_secret=d3PFwfYOzTfCOqyMeUBAbMwM25XZPvtq&username=messi&password=messi123&grant_type=password" \
-      | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-    PAYMENTS_TOKEN=$(curl -s -X POST \
-      http://keycloak.hellocloud.io:8080/realms/hellocloudbank/protocol/openid-connect/token \
-      -H "Content-Type: application/x-www-form-urlencoded" \
-      -d "client_id=payments-client&client_secret=KkCk1GmVTmNADrr0Qy2LjlTiQWghUOMR&username=steve&password=steve123&grant_type=password" \
-      | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-  fi
+  sleep 3300
+  echo "Refreshing tokens..."
+  stop_workers
+  fetch_tokens
+  start_workers
 done
+
+
+#watch -n 3 "kubectl top pods -A | grep -E 'NAMESPACE|retail-banking-team|payments-team|grc-team'; echo; kubectl get hpa -A | grep -E 'NAMESPACE|retail-banking-team|payments-team|grc-team'"

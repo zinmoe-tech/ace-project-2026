@@ -100,7 +100,7 @@ curl -s -o /dev/null -w "HTTP: %{http_code}\n" \
 
 curl -s -o /dev/null -w "HTTP: %{http_code}\n" \
   -H "Host: finance.hellocloud.io" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Authorization: Bearer $MESSI_TOKEN" \
   http://172.18.255.190/grc/audits
 
 # NOTE: Add Group Membership Mapper to Keycloak Client
