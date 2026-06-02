@@ -8,6 +8,9 @@ Demonstrates a full security, routing, observability, and autoscaling stack usin
 
 ## Architecture
 
+![overview](asset/globalkong-istio-gateway.png)
+
+
 ```
                         ┌─────────────────────────────────────────────────┐
                         │  External Client (curl / browser)               │
