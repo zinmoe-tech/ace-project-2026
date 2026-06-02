@@ -11,41 +11,7 @@ Demonstrates a full security, routing, observability, and autoscaling stack usin
 ![overview](asset/globalkong-istio-gateway.png)
 
 
-```
-                        ┌─────────────────────────────────────────────────┐
-                        │  External Client (curl / browser)               │
-                        └───────────────────────┬─────────────────────────┘
-                                                │  Host: finance.hellocloud.io
-                                                ▼
-                        ┌─────────────────────────────────────────────────┐
-                        │  Kong Global Gateway   172.18.255.190           │
-                        │  namespace: global-kic  (MetalLB LoadBalancer)  │
-                        │                                                 │
-                        │  HTTPRoute — path rewriting                     │
-                        │    /retail-banking/* → retail-banking-ingress   │
-                        │    /payments/*       → payments-ingress         │
-                        │    /grc/*            → grc-ingress              │
-                        └────────┬─────────────┬──────────────┬───────────┘
-                                 │             │              │
-                     ┌───────────▼──┐ ┌────────▼─────┐ ┌────▼──────────┐
-                     │  Istio IGW   │ │  Istio IGW   │ │  Istio IGW   │
-                     │  retail-     │ │  payments-   │ │  grc-        │
-                     │  banking-    │ │  ingress     │ │  ingress     │
-                     │  ingress     │ │  (ClusterIP) │ │  (ClusterIP) │
-                     │  (ClusterIP) │ └──────┬───────┘ └─────┬────────┘
-                     └──────┬───────┘        │               │
-                            │                │               │
-              ┌─────────────▼──────┐  ┌──────▼────────┐  ┌──▼──────────┐
-              │ retail-banking-team│  │ payments-team │  │  grc-team   │
-              │                   │  │               │  │             │
-              │ customer-profile  │  │ transfer-svc  │  │ fraud-svc   │
-              │    ↓ (chain)      │  │    ↓ (chain)  │  │    ↓        │
-              │ account-svc       │  │ payment-gw    │  │ audit-svc   │
-              │    ↓              │  │    ↓          │  │    ↓        │
-              │ statement-svc     │  │ fx-svc        │  │ sanction-sv │
-              └───────────────────┘  └───────────────┘  └─────────────┘
-                     ↑ mTLS (STRICT)    ↑ mTLS             ↑ mTLS
-```
+
 
 ### Security Layers (applied left to right per request)
 
