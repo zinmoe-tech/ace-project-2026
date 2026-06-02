@@ -211,6 +211,18 @@ Common causes:
 - The generated traffic is not CPU-heavy enough to exceed the `80%` target.
 - The HPA has already reached `maxReplicas: 2`.
 
+## Load Testing Result
+
+![before](../asset/before.png)
+
+![before result](../asset/less-8--dash.png)
+
+![afterloadtest](../asset/afterloadtest)
+
+![obser](../asset/observability)
+
+
+
 ## Cleanup
 
 Remove only the autoscaling resources:
