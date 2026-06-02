@@ -17,7 +17,7 @@ usage is around `80m` per pod.
 
 ## Diagram
 
-![autoscaling](asset/autoscaling.png)
+![autoscaling-diagram](asset/autoscaling.png)
 
 ## 1. Confirm The Application Is Deployed
 
