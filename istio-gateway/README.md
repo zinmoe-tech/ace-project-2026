@@ -420,14 +420,15 @@ HPA is configured for all 9 microservices:
 
 > **Why AverageValue instead of Utilization?**
 > The fake-service (nicholasjackson/fake-service) is a lightweight Go HTTP proxy.
-> Even under 1800 concurrent connections it only uses 1–8m CPU — well below
-> 80% of 100m (= 80m). Using `AverageValue: 5m` triggers scale-out as soon
-> as load pushes CPU above 5 millicores, which is observable under hey load.
+> Even under 1800 concurrent connections it only uses 1-8m CPU, so a normal
+> percentage-utilization target is hard to observe locally. Using
+> `AverageValue: 5m` triggers scale-out as soon as load pushes CPU above
+> 5 millicores, which is observable under hey load.
 
 Verify:
 ```bash
 kubectl get hpa -A
-# TARGETS shows current CPU% / 80%
+# TARGETS shows current CPU / 5m
 ```
 
 ### Load Test (trigger HPA)
@@ -459,7 +460,7 @@ kubectl get hpa -A --no-headers | grep -E 'retail-banking-team|payments-team|grc
 "
 ```
 
-When CPU exceeds 80%, REPLICAS flips from `1 → 2`.
+When average CPU exceeds `5m`, REPLICAS flips from `1 → 2`.
 
 ---
 
@@ -579,7 +580,7 @@ istio-gateway/
 │
 ├── autoscaling/                      # Horizontal Pod Autoscaler
 │   ├── 01-metrics-server.yaml        # metrics-server (kind-compatible)
-│   └── 02-hpa.yaml                   # HPA for all 9 services (80% CPU → 2 replicas)
+│   └── 02-hpa.yaml                   # HPA for all 9 services (5m CPU -> 2 replicas)
 │
 ├── kind-cluster-setup/               # Cluster bootstrap
 │   ├── kindconfig-v134.yaml          # Kind cluster config (4 nodes)

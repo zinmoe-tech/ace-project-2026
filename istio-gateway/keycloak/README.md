@@ -57,19 +57,17 @@ Keycloak owns identity. Istio owns enforcement.
 | --- | --- | --- |
 | `iss` | `RequestAuthentication` | Confirms the token came from the expected realm |
 | JWT signature | `RequestAuthentication` + JWKS | Confirms the token was signed by Keycloak |
-| `realm_access.roles` | `AuthorizationPolicy` | Allows users into the matching team namespace |
-| `groups` | `AuthorizationPolicy` | Allows group-based access, such as `senior-group` |
+| `groups` | `AuthorizationPolicy` | Allows users into the matching team namespace |
 | `preferred_username` | `AuthorizationPolicy` | Allows special user-based access, such as `admin-user` |
 
-Namespace access in the default JWT policy:
+Namespace access in the current JWT policy:
 
 | Keycloak role or group | Access |
 | --- | --- |
-| `retail-banking-user` | `retail-banking-team` |
-| `payments-user` | `payments-team` |
-| `grc-user` | `grc-team` |
-| `senior-group` | all three team namespaces |
-| `admin-user` | all three team namespaces when `11-admin-role.yaml` is applied |
+| `retail-group` | `retail-banking-team` |
+| `payments-group` | `payments-team` |
+| `grc-group` | `grc-team` |
+| `admin-user` | all three team namespaces through the policy exemption |
 
 ## Files
 
@@ -78,9 +76,7 @@ Namespace access in the default JWT policy:
 | `00-namespace.yaml` | Creates the `keycloak` namespace without Istio injection |
 | `01-keycloak.yaml` | Runs Keycloak 26.0.0 in local dev mode with a `LoadBalancer` service |
 | `02-request-authentication.yaml` | Configures Istio JWT validation for the three team namespaces |
-| `03-authz-policy-jwt.yaml` | Enforces role/group based access for retail, payments, and GRC |
-| `10-authz-policy-retail-group.yaml` | Optional stricter per-service policy using `groups` and `preferred_username` claims |
-| `11-admin-role.yaml` | Optional admin-user policy for full namespace access |
+| `10-authz-policy-retail-group.yaml` | Enforces per-service access using `groups` and `preferred_username` claims |
 | `how-to.md` | Detailed step-by-step Keycloak UI setup and token testing |
 | `how-to-write-policy.md` | Notes for decoding JWT claims and writing claim-based policies |
 
@@ -159,20 +155,14 @@ still request tokens through `keycloak.hellocloud.io`.
 
 ### 4. Apply Authorization Policies
 
-For the role/group namespace policy:
+For the group-based per-service policy:
 
 ```bash
-kubectl apply -f istio-gateway/keycloak/03-authz-policy-jwt.yaml
+kubectl apply -f istio-gateway/keycloak/10-authz-policy-retail-group.yaml
 ```
 
-Optionally allow `admin-user` full access:
-
-```bash
-kubectl apply -f istio-gateway/keycloak/11-admin-role.yaml
-```
-
-Use `10-authz-policy-retail-group.yaml` only when you want stricter per-service
-rules based on the `groups` claim and `preferred_username`.
+This policy uses the `groups` claim for team access and exempts
+`admin-user` from wrong-team denies.
 
 Verify:
 
@@ -221,9 +211,9 @@ curl -s -o /dev/null -w "HTTP: %{http_code}\n" \
 | --- | --- |
 | No JWT | blocked by DENY policy |
 | Invalid or expired JWT | `401` from JWT validation |
-| Valid JWT with wrong role/group | blocked by AuthorizationPolicy |
-| Valid JWT with matching role/group | request reaches the service |
-| `admin-user` with `11-admin-role.yaml` applied | request can reach all team namespaces |
+| Valid JWT with wrong group | blocked by AuthorizationPolicy |
+| Valid JWT with matching group | request reaches the service |
+| `admin-user` | request can reach all team namespaces |
 
 ## Troubleshooting
 
@@ -246,7 +236,7 @@ Check authorization:
 
 ```bash
 kubectl get authorizationpolicy -A
-kubectl describe authorizationpolicy require-jwt-retail-banking -n retail-banking-team
+kubectl describe authorizationpolicy require-jwt-customer-profile-svc -n retail-banking-team
 ```
 
 Decode a JWT payload:
@@ -275,8 +265,7 @@ Common issues:
 Remove Istio JWT policies:
 
 ```bash
-kubectl delete -f istio-gateway/keycloak/11-admin-role.yaml --ignore-not-found
-kubectl delete -f istio-gateway/keycloak/03-authz-policy-jwt.yaml --ignore-not-found
+kubectl delete -f istio-gateway/keycloak/10-authz-policy-retail-group.yaml --ignore-not-found
 kubectl delete -f istio-gateway/keycloak/02-request-authentication.yaml --ignore-not-found
 ```
 

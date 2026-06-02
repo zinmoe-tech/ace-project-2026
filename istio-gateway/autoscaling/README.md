@@ -8,12 +8,12 @@ Autoscaling in this folder uses:
 - `01-metrics-server.yaml` to expose Kubernetes CPU and memory metrics.
 - `02-hpa.yaml` to create one `HorizontalPodAutoscaler` per application
   deployment.
-- CPU-based scaling at `80%` average utilization.
+- CPU-based scaling at `5m` average CPU per pod.
 - `minReplicas: 1` and `maxReplicas: 2` for each demo service.
 
-The HPA target is based on each container CPU request. For these services the
-request is `100m`, so `80%` means the HPA starts scaling out when average CPU
-usage is around `80m` per pod.
+The demo services are very lightweight, so the HPA uses `AverageValue: 5m`
+instead of percentage utilization. This makes scale-out visible under local
+load tests.
 
 ## Diagram
 
@@ -30,10 +30,7 @@ kubectl apply -f istio-gateway/apps/retail-banking/
 kubectl apply -f istio-gateway/apps/payments/
 kubectl apply -f istio-gateway/apps/grc/
 kubectl apply -f istio-gateway/global-api-gateway
-kubectl apply -f istio-gateway/team-istio-routes/namespaces.yaml
-kubectl apply -f istio-gateway/team-istio-routes/retail-banking/gateway-virtualservice.yaml
-kubectl apply -f istio-gateway/team-istio-routes/payments/gateway-virtualservice.yaml
-kubectl apply -f istio-gateway/team-istio-routes/grc/gateway-virtualservice.yaml
+kubectl apply -k istio-gateway/team-istio-routes
 ```
 
 Check the application pods:
@@ -140,7 +137,7 @@ Send repeated requests through the global gateway. Replace
 ```bash
 while true; do
   curl -s -H "Host: finance.hellocloud.io" \
-    http://<GLOBAL_KONG_LB>/retail-banking/accounts >/dev/null
+    http://<GLOBAL_KONG_LB>/retail-banking/customer-profile-svc >/dev/null
 done
 ```
 
@@ -150,7 +147,7 @@ use a load tool such as `hey`:
 ```bash
 hey -z 3m -c 50 \
   -H "Host: finance.hellocloud.io" \
-  http://<GLOBAL_KONG_LB>/retail-banking/accounts
+  http://<GLOBAL_KONG_LB>/retail-banking/customer-profile-svc
 ```
 
 Watch the HPA output. When CPU crosses the target, replicas should move from
@@ -208,7 +205,7 @@ Common causes:
 - `metrics-server` is not ready.
 - `kubectl top` cannot return pod metrics.
 - The target deployment has no CPU request.
-- The generated traffic is not CPU-heavy enough to exceed the `80%` target.
+- The generated traffic is not CPU-heavy enough to exceed the `5m` target.
 - The HPA has already reached `maxReplicas: 2`.
 
 ## Load Testing Result
@@ -225,7 +222,7 @@ After testing load
 ```
 ![afterloadtest](../asset/afterloadtest.png)
 
-![obser](../asset/after-loadtest-dashboard.png)
+![observability](../asset/after-loadtest-dashboard.png)
 
 
 

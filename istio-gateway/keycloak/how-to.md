@@ -46,7 +46,7 @@ Every request then carries that token and your services only need to verify it.
 | `00-namespace.yaml` | Creates the `keycloak` namespace (no Istio sidecar — Keycloak is outside the mesh) |
 | `01-keycloak.yaml` | Deploys Keycloak 26.0.0 in dev mode with a MetalLB LoadBalancer service |
 | `02-request-authentication.yaml` | Tells Istio **how** to validate JWT tokens (JWKS URI, issuer) |
-| `03-authz-policy-jwt.yaml` | Tells Istio **who** is allowed in (role check + deny-no-token) |
+| `10-authz-policy-retail-group.yaml` | Tells Istio **who** is allowed in (group check + deny-no-token) |
 
 ---
 
@@ -195,7 +195,7 @@ curl -s http://keycloak.hellocloud.io:8080/realms/master | python3 -m json.tool
 
 ```bash
 kubectl apply -f keycloak/02-request-authentication.yaml
-kubectl apply -f keycloak/03-authz-policy-jwt.yaml
+kubectl apply -f keycloak/10-authz-policy-retail-group.yaml
 ```
 
 Verify they were created:
@@ -209,7 +209,7 @@ kubectl get requestauthentication -A
 kubectl get authorizationpolicy -n retail-banking-team
 # NAME                        ACTION   AGE
 # deny-no-jwt-retail-banking  DENY     ...
-# require-jwt-retail-banking  ALLOW    ...
+# require-jwt-customer-profile-svc  ALLOW    ...
 ```
 
 ---
@@ -304,14 +304,14 @@ jwksUri: http://keycloak.keycloak.svc.cluster.local:8080/...
 > - `issuer` = what's stamped inside the token (uses the external hostname clients see)
 > - `jwksUri` = where Istio fetches public keys (uses internal DNS — faster, no egress)
 
-### Layer 2 — `03-authz-policy-jwt.yaml` (Role Enforcement)
+### Layer 2 — `10-authz-policy-retail-group.yaml` (Group Enforcement)
 
 Two policies work together:
 
 | Policy | Action | Purpose |
 |--------|--------|---------|
 | `deny-no-jwt-retail-banking` | DENY | Blocks requests with **no JWT** at `customer-profile-svc` |
-| `require-jwt-retail-banking` | ALLOW | Allows requests with valid token AND correct role |
+| `require-jwt-customer-profile-svc` | ALLOW | Allows requests with valid token AND correct group |
 
 **Why is the DENY policy needed?**
 SPIFFE/mTLS policies (in `authz-retail-banking.yaml`) allow IngressGateway → `customer-profile-svc` based on pod identity — they don't check JWTs.
@@ -422,7 +422,7 @@ echo "  -d 'client_id=retail-banking-client&client_secret=3mvHOLWKWNjH4Jl19Z8Ew7
 | HTTP 401 (token rejected) | `iss` in token doesn't match `issuer` in RequestAuthentication | Decode token with `echo $TOKEN \| cut -d'.' -f2 \| base64 -d` and compare iss value |
 | HTTP 401 (wrong role) | User doesn't have the required role | Assign the correct role in Keycloak UI → Role mapping |
 | HTTP 403 (no token) | DENY policy is working correctly | Add a valid token to your request |
-| HTTP 200 without token | `deny-no-jwt` policy not applied | `kubectl apply -f keycloak/03-authz-policy-jwt.yaml` |
+| HTTP 200 without token | `deny-no-jwt` policy not applied | `kubectl apply -f keycloak/10-authz-policy-retail-group.yaml` |
 
 ---
 

@@ -11,7 +11,7 @@ spec:
   hostnames:
   - finance.hellocloud.io
   rules:
-  # Public URL: /retail-banking/accounts
+  # Public URL: /retail-banking/customer-profile-svc
   # Kong sends it to the retail-banking Istio ingress gateway as: /accounts
   - matches:
     - path:

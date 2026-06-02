@@ -131,7 +131,7 @@ ReferenceGrants in each team namespace
 The global HTTPRoute rewrites paths:
 
 ```text
-/retail-banking/accounts -> /accounts
+/retail-banking/customer-profile-svc -> /accounts
 /payments/transactions   -> /transactions
 /grc/audits              -> /audits
 ```
@@ -173,7 +173,7 @@ kubectl get svc -n global-kic
 Then test with your load balancer IP or DNS name:
 
 ```bash
-curl -H "Host: finance.hellocloud.io" http://<GLOBAL_KONG_LB>/retail-banking/accounts
+curl -H "Host: finance.hellocloud.io" http://<GLOBAL_KONG_LB>/retail-banking/customer-profile-svc
 curl -H "Host: finance.hellocloud.io" http://<GLOBAL_KONG_LB>/payments/transactions
 curl -H "Host: finance.hellocloud.io" http://<GLOBAL_KONG_LB>/grc/audits
 ```
@@ -184,4 +184,3 @@ curl -H "Host: finance.hellocloud.io" http://<GLOBAL_KONG_LB>/grc/audits
 - Those are for the separate Kong-to-Kong ExternalName design.
 - This setup uses Kong only at the global edge and Istio ingress gateways per team.
 - If `GatewayClass` is not accepted, check that Kong was installed with the same `gateway_api_controller_name`.
-

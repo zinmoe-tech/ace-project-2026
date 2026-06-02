@@ -8,7 +8,7 @@
 #
 # If a request carries an INVALID token → rejected (401)
 # If a request carries NO token → passed through (not rejected here)
-#   → AuthorizationPolicy (03-authz-policy-jwt.yaml) handles that.
+#   → AuthorizationPolicy (10-authz-policy-retail-group.yaml) handles that.
 # ---------------------------------------------------------------
 
 # --- retail-banking-team ---

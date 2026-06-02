@@ -46,7 +46,7 @@ spec:
         ports: ["15021"]
 
 ---
-# 4. Allow promethus on port 15090
+# 4. Allow Prometheus on port 15090
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:

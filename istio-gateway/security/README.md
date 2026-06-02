@@ -74,8 +74,7 @@ Related Keycloak files:
 | File | Purpose |
 | --- | --- |
 | `../keycloak/02-request-authentication.yaml` | Validates JWT issuer, signature, and expiry |
-| `../keycloak/03-authz-policy-jwt.yaml` | Enforces namespace access using roles/groups |
-| `../keycloak/11-admin-role.yaml` | Optional full access policy for `admin-user` |
+| `../keycloak/10-authz-policy-retail-group.yaml` | Enforces per-service access using JWT `groups` and `preferred_username` |
 
 ## Policy Model
 
@@ -154,13 +153,7 @@ JWT policies live in the Keycloak folder:
 
 ```bash
 kubectl apply -f istio-gateway/keycloak/02-request-authentication.yaml
-kubectl apply -f istio-gateway/keycloak/03-authz-policy-jwt.yaml
-```
-
-Optionally allow `admin-user` full access:
-
-```bash
-kubectl apply -f istio-gateway/keycloak/11-admin-role.yaml
+kubectl apply -f istio-gateway/keycloak/10-authz-policy-retail-group.yaml
 ```
 
 ## Allowed Service Paths
@@ -385,8 +378,7 @@ Common causes:
 Remove JWT policies:
 
 ```bash
-kubectl delete -f istio-gateway/keycloak/11-admin-role.yaml --ignore-not-found
-kubectl delete -f istio-gateway/keycloak/03-authz-policy-jwt.yaml --ignore-not-found
+kubectl delete -f istio-gateway/keycloak/10-authz-policy-retail-group.yaml --ignore-not-found
 kubectl delete -f istio-gateway/keycloak/02-request-authentication.yaml --ignore-not-found
 ```
 

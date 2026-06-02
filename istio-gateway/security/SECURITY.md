@@ -11,9 +11,9 @@
 |---|---------|------|-------|------|
 | 1 | **Mesh-wide mTLS STRICT** | `PeerAuthentication` | All namespaces (istio-system) | `peer-authentication.yaml` |
 | 2 | **JWT Signature Validation** | `RequestAuthentication` | retail-banking-team, payments-team, grc-team | `keycloak/02-request-authentication.yaml` |
-| 3 | **Deny — No Token** | `AuthorizationPolicy` DENY | retail-banking-team | `keycloak/03-authz-policy-jwt.yaml` |
-| 4 | **Deny — Wrong Namespace Token** | `AuthorizationPolicy` DENY | retail-banking-team, payments-team, grc-team | `keycloak/03-authz-policy-jwt.yaml` |
-| 5 | **Allow — Valid JWT** | `AuthorizationPolicy` ALLOW | retail-banking-team, payments-team, grc-team | `keycloak/03-authz-policy-jwt.yaml` |
+| 3 | **Deny — No Token** | `AuthorizationPolicy` DENY | retail-banking-team, payments-team, grc-team | `keycloak/10-authz-policy-retail-group.yaml` |
+| 4 | **Deny — Wrong Namespace Token** | `AuthorizationPolicy` DENY | retail-banking-team, payments-team, grc-team | `keycloak/10-authz-policy-retail-group.yaml` |
+| 5 | **Allow — Valid JWT** | `AuthorizationPolicy` ALLOW | retail-banking-team, payments-team, grc-team | `keycloak/10-authz-policy-retail-group.yaml` |
 | 6 | **Deny-All Default** | `AuthorizationPolicy` DENY | All 6 team + ingress namespaces | `authz-*.yaml` |
 | 7 | **Allow IngressGateway → Services** | `AuthorizationPolicy` ALLOW | retail-banking-team, payments-team, grc-team | `authz-retail-banking.yaml`, `authz-payments.yaml`, `authz-grc.yaml` |
 | 8 | **Allow Kong → IngressGateway** | `AuthorizationPolicy` ALLOW | retail-banking-ingress, payments-ingress, grc-ingress | `authz-*-ingress.yaml` |
@@ -57,7 +57,7 @@ Applied to all three team namespaces. Istio sidecars validate every incoming JWT
 
 ## 4. AuthorizationPolicy — Ingress Namespaces
 
-Each dedicated ingress namespace has a **deny-all + two explicit ALLOWs** pattern.
+Each dedicated ingress namespace has a **deny-all + three explicit ALLOWs** pattern.
 
 ### retail-banking-ingress
 
@@ -66,6 +66,7 @@ Each dedicated ingress namespace has a **deny-all + two explicit ALLOWs** patter
 | `retail-banking-ingress-deny-all` | DENY (default) | — (all pods) | ❌ Everything | all |
 | `allow-kong-to-retail-banking-ingressgateway` | ALLOW | `app: retail-banking-istio-ingressgateway` | Any source | `8080` |
 | `allow-healthcheck-retail-banking-ingressgateway` | ALLOW | `app: retail-banking-istio-ingressgateway` | Any source | `15021` |
+| `allow-prometheus-ingressgateway` | ALLOW | `app: retail-banking-istio-ingressgateway` | Any source | `15090` |
 
 ### payments-ingress
 
@@ -74,6 +75,7 @@ Each dedicated ingress namespace has a **deny-all + two explicit ALLOWs** patter
 | `payments-ingress-deny-all` | DENY (default) | — (all pods) | ❌ Everything | all |
 | `allow-kong-to-payments-ingressgateway` | ALLOW | `app: payments-istio-ingressgateway` | Any source | `8080` |
 | `allow-healthcheck-payments-ingressgateway` | ALLOW | `app: payments-istio-ingressgateway` | Any source | `15021` |
+| `allow-prometheus-ingressgateway` | ALLOW | `app: payments-istio-ingressgateway` | Any source | `15090` |
 
 ### grc-ingress
 
@@ -82,6 +84,7 @@ Each dedicated ingress namespace has a **deny-all + two explicit ALLOWs** patter
 | `grc-ingress-deny-all` | DENY (default) | — (all pods) | ❌ Everything | all |
 | `allow-kong-to-grc-ingressgateway` | ALLOW | `app: grc-istio-ingressgateway` | Any source | `8080` |
 | `allow-healthcheck-grc-ingressgateway` | ALLOW | `app: grc-istio-ingressgateway` | Any source | `15021` |
+| `allow-prometheus-ingressgateway` | ALLOW | `app: grc-istio-ingressgateway` | Any source | `15090` |
 
 ---
 
@@ -103,24 +106,25 @@ Each dedicated ingress namespace has a **deny-all + two explicit ALLOWs** patter
 | Policy Name | Action | Selector (Target) | Allowed From (SPIFFE Principal) | Port |
 |-------------|--------|--------------------|----------------------------------|------|
 | `payments-deny-all` | DENY (default) | — (all pods) | ❌ Everything | all |
-| `allow-ingressgateway-to-transfer-svc` | ALLOW | `app: transfer-svc` | `cluster.local/ns/payments-ingress/sa/payments-istio-ingressgateway-service-account` | `7071` |
-| `allow-ingressgateway-to-payment-gateway-svc` | ALLOW | `app: payment-gateway-svc` | `cluster.local/ns/payments-ingress/sa/payments-istio-ingressgateway-service-account` | `7072` |
-| `allow-ingressgateway-to-fx-svc` | ALLOW | `app: fx-svc` | `cluster.local/ns/payments-ingress/sa/payments-istio-ingressgateway-service-account` | `7073` |
+| `allow-ingressgateway-to-transfer-svc` | ALLOW | `app: transfer-svc` | `cluster.local/ns/payments-ingress/sa/payments-istio-ingressgateway-service-account` | `9091` |
+| `allow-ingressgateway-to-payment-gateway-svc` | ALLOW | `app: payment-gateway-svc` | `cluster.local/ns/payments-ingress/sa/payments-istio-ingressgateway-service-account` | `9092` |
+| `allow-ingressgateway-to-fx-svc` | ALLOW | `app: fx-svc` | `cluster.local/ns/payments-ingress/sa/payments-istio-ingressgateway-service-account` | `9093` |
 
 ### grc-team
 
 | Policy Name | Action | Selector (Target) | Allowed From (SPIFFE Principal) | Port |
 |-------------|--------|--------------------|----------------------------------|------|
 | `grc-deny-all` | DENY (default) | — (all pods) | ❌ Everything | all |
-| `allow-ingressgateway-to-fraud-svc` | ALLOW | `app: fraud-svc` | `cluster.local/ns/grc-ingress/sa/grc-istio-ingressgateway-service-account` | `6061` |
-| `allow-ingressgateway-to-audit-svc` | ALLOW | `app: audit-svc` | `cluster.local/ns/grc-ingress/sa/grc-istio-ingressgateway-service-account` | `6062` |
-| `allow-ingressgateway-to-sanction-svc` | ALLOW | `app: sanction-svc` | `cluster.local/ns/grc-ingress/sa/grc-istio-ingressgateway-service-account` | `6063` |
+| `allow-ingressgateway-to-fraud-svc` | ALLOW | `app: fraud-svc` | `cluster.local/ns/grc-ingress/sa/grc-istio-ingressgateway-service-account` | `9091` |
+| `allow-ingressgateway-to-audit-svc` | ALLOW | `app: audit-svc` | `cluster.local/ns/grc-ingress/sa/grc-istio-ingressgateway-service-account` | `9092` |
+| `allow-ingressgateway-to-sanction-svc` | ALLOW | `app: sanction-svc` | `cluster.local/ns/grc-ingress/sa/grc-istio-ingressgateway-service-account` | `9093` |
 
 ---
 
-## 6. AuthorizationPolicy — JWT Group & Role Enforcement
+## 6. AuthorizationPolicy — JWT Group Enforcement
 
-Applied after SPIFFE checks. Controls which users can access which namespace.
+Applied after SPIFFE checks. Controls which users can access which namespace
+using the Keycloak `groups` claim.
 
 ### Policy Evaluation Order (Istio rule: DENY beats ALLOW)
 
@@ -141,48 +145,48 @@ Request arrives at sidecar
 
 | Policy Name | Namespace | Action | Condition | Result |
 |-------------|-----------|--------|-----------|--------|
-| `deny-no-jwt-retail-banking` | `retail-banking-team` | DENY | No JWT present (`notRequestPrincipals: ["*"]`) | **403** — no token |
-| `deny-wrong-jwt-retail-banking` | `retail-banking-team` | DENY | Has JWT **AND** `groups` ≠ `senior-group` **AND** `roles` ≠ `retail-banking-user` | **403** — wrong namespace |
-| `require-jwt-retail-banking` | `retail-banking-team` | ALLOW | `groups` = `senior-group` **OR** `roles` = `retail-banking-user` | **200** — allowed |
-| `deny-wrong-jwt-payments` | `payments-team` | DENY | Has JWT **AND** `groups` ≠ `senior-group` **AND** `roles` ≠ `payments-user` | **403** — wrong namespace |
-| `require-jwt-payments` | `payments-team` | ALLOW | `groups` = `senior-group` **OR** `roles` = `payments-user` | **200** — allowed |
-| `deny-wrong-jwt-grc` | `grc-team` | DENY | Has JWT **AND** `groups` ≠ `senior-group` **AND** `roles` ≠ `grc-user` | **403** — wrong namespace |
-| `require-jwt-grc` | `grc-team` | ALLOW | `groups` = `senior-group` **OR** `roles` = `grc-user` | **200** — allowed |
+| `deny-no-jwt-*` | all team namespaces | DENY | No JWT present (`notRequestPrincipals: ["*"]`) | **403** — no token |
+| `deny-wrong-jwt-*` | `retail-banking-team` | DENY | Has JWT, user is not `admin-user`, and `groups` does not contain `retail-group` | **403** — wrong namespace |
+| `deny-wrong-jwt-*` | `payments-team` | DENY | Has JWT, user is not `admin-user`, and `groups` does not contain `payments-group` | **403** — wrong namespace |
+| `deny-wrong-jwt-*` | `grc-team` | DENY | Has JWT, user is not `admin-user`, and `groups` does not contain `grc-group` | **403** — wrong namespace |
+| `require-jwt-*` | `retail-banking-team` | ALLOW | `groups` contains `retail-group` | **200** — allowed |
+| `require-jwt-*` | `payments-team` | ALLOW | `groups` contains `payments-group` | **200** — allowed |
+| `require-jwt-*` | `grc-team` | ALLOW | `groups` contains `grc-group` | **200** — allowed |
 
 ### JWT Claims Used
 
 | Claim Key | Source | Example Value |
 |-----------|--------|---------------|
-| `request.auth.claims[groups]` | Keycloak group membership mapper | `["senior-group"]` |
-| `request.auth.claims[realm_access][roles]` | Keycloak realm roles | `["retail-banking-user"]` |
+| `request.auth.claims[groups]` | Keycloak group membership mapper | `["retail-group"]` |
+| `request.auth.claims[preferred_username]` | Keycloak username | `admin-user` |
 | `requestPrincipals` | `iss/sub` from JWT | `http://keycloak.../hellocloudbank/*` |
 
 ---
 
-## 7. Role-Based Access Control (RBAC)
+## 7. Group-Based Access Control
 
-### Keycloak Users & Roles
+### Keycloak Users & Groups
 
-| User | Group | Realm Roles | retail-banking | payments | grc |
-|------|-------|-------------|----------------|----------|-----|
-| `alice` | `senior-group` | `retail-banking-user`, `payments-user`, `grc-user` | ✅ | ✅ | ✅ |
-| `alice` | `junior-group` | `retail-banking-user` | ✅ | ❌ | ❌ |
-| `charlie` | `junior-group` | `payments-user` | ❌ | ✅ | ❌ |
-| `bob` | `junior-group` | `grc-user` | ❌ | ❌ | ✅ |
-| *(no token)* | — | — | ❌ 403 | ❌ 403 | ❌ 403 |
+| User | Group | retail-banking | payments | grc |
+|------|-------|----------------|----------|-----|
+| `john` | `retail-group` | 200 | 403 | 403 |
+| `steve` | `payments-group` | 403 | 200 | 403 |
+| `messi` | `grc-group` | 403 | 403 | 200 |
+| `admin-user` | none | 200 | 200 | 200 |
+| *(no token)* | none | 403 | 403 | 403 |
 
 ### Why `DENY` is Required (not just `ALLOW`)
 
 ```
 Without DENY policy:
-  charlie (payments-user) sends request to retail-banking-team
+  steve (payments-group) sends request to retail-banking-team
     → SPIFFE ALLOW matches (IngressGateway → customer-profile-svc) ✅
-    → JWT ALLOW does NOT match (no retail-banking-user role) ❌
+    → JWT ALLOW does NOT match (no retail-group) ❌
     → Istio picks the SPIFFE ALLOW → request PASSES  ← SECURITY BUG
 
 With DENY policy:
-  charlie (payments-user) sends request to retail-banking-team
-    → DENY fires first: has JWT, groups ≠ senior-group, roles ≠ retail-banking-user → 403 ✅
+  steve (payments-group) sends request to retail-banking-team
+    → DENY fires first: has JWT, groups does not contain retail-group → 403 ✅
 ```
 
 ---
@@ -225,9 +229,8 @@ Layer 4 — Authentication (JWT)
 
 Layer 5 — Authorization (RBAC)
   └─ DENY wrong-namespace tokens before ALLOW can match
-  └─ ALLOW only if groups=senior-group OR correct namespace role
-  └─ senior-group → all namespaces
-  └─ junior-group → own namespace only
+  └─ ALLOW only if the token has the correct team group
+  └─ admin-user is exempt from wrong-team DENY policies
 ```
 
 ---
@@ -244,5 +247,5 @@ Layer 5 — Authorization (RBAC)
 | `security/authz-payments.yaml` | Deny-all + SPIFFE ALLOW for payments-team services |
 | `security/authz-grc.yaml` | Deny-all + SPIFFE ALLOW for grc-team services |
 | `keycloak/02-request-authentication.yaml` | JWT validation rules (issuer, JWKS URI) |
-| `keycloak/03-authz-policy-jwt.yaml` | JWT group/role DENY + ALLOW policies |
+| `keycloak/10-authz-policy-retail-group.yaml` | JWT group DENY + ALLOW policies |
 | `minimal-profile.yaml` | IstioOperator — ClusterIP service type for all IngressGateways |

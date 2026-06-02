@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------
 # HorizontalPodAutoscaler — all 9 microservices
 # Trigger: actual CPU usage > 5m per pod → scale out
-# (fake-service is too lightweight to reach 80% of 100m = 80m)
+# (fake-service is too lightweight for a percentage-utilization demo target)
 # Min: 1 replica  |  Max: 2 replicas
 # ---------------------------------------------------------------
 
