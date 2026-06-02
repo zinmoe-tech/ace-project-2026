@@ -225,7 +225,7 @@ After testing load
 ```
 ![afterloadtest](../asset/afterloadtest.png)
 
-![obser](../asset/observability.png)
+![obser](../asset/obserbility.png)
 
 
 
