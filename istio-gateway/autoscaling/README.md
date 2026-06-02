@@ -17,7 +17,7 @@ usage is around `80m` per pod.
 
 ## Diagram
 
-![scaling result](asset/autoscaling.png)
+![scaling result](../asset/autoscaling.png)
 
 ```
 ```
