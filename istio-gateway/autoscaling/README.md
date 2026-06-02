@@ -216,16 +216,16 @@ Common causes:
 ```
 Before testing load
 ```
-![before](../asset/before.png)
+![before](../asset/before-loadtest-dashboard.png)
 
-![before result](../asset/less-8--dash.png)
+![before result](../asset/before-loadtest.png)
 
 ```
 After testing load
 ```
 ![afterloadtest](../asset/afterloadtest.png)
 
-![obser](../asset/obserbility.png)
+![obser](../asset/after-loadtest-dashboard.png)
 
 
 
