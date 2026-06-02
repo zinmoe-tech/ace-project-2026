@@ -213,13 +213,19 @@ Common causes:
 
 ## Load Testing Result
 
+```
+Before testing load
+```
 ![before](../asset/before.png)
 
 ![before result](../asset/less-8--dash.png)
 
-![afterloadtest](../asset/afterloadtest)
+```
+After testing load
+```
+![afterloadtest](../asset/afterloadtest.png)
 
-![obser](../asset/observability)
+![obser](../asset/observability.png)
 
 
 
