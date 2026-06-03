@@ -1,0 +1,68 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: clusters/prod/argocd/team-b-app.yaml
+#
+# PURPOSE:
+#   Identical in structure to team-a-app.yaml but scoped to team-b.
+#   Each tenant gets their own Application resource so that:
+#
+#   1. Sync failures in team-b don't affect team-a (blast radius isolation)
+#   2. Each team's sync history is tracked independently in the ArgoCD UI
+#   3. RBAC can be applied per-Application in Phase 2 — team-b developers
+#      can only trigger syncs for THIS Application, not team-a's
+#
+#   Watches: apps/team-b/
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: argoproj.io/v1alpha1  # ArgoCD API group
+kind: Application                  # ArgoCD Application custom resource
+metadata:
+  name: team-b-apps                # Unique name per tenant — shown in ArgoCD UI
+  namespace: argocd                # Must always be argocd namespace
+
+  finalizers:
+    # Blocks deletion while team-b's live workloads exist in the cluster.
+    # Prevents a platform engineer from accidentally wiping a team's workloads
+    # by simply deleting this Application manifest from Git.
+    - resources-finalizer.argocd.argoproj.io
+
+  labels:
+    team: team-b                   # Label for filtering in ArgoCD UI
+    tier: tenant                   # Distinguishes tenant apps from platform apps
+
+spec:
+  project: default                 # Will be replaced with "team-b" AppProject
+                                   # in Phase 2 to enforce namespace isolation
+                                   # and resource creation restrictions.
+
+  source:
+    repoURL: https://github.com/zinmoe-tech/ace-project-2026.git  # Same mono-repo as team-a
+    targetRevision: HEAD           # Track latest commit
+
+    # Separate folder per team — full isolation at the filesystem level.
+    # Team-b can only commit to apps/team-b/, they cannot touch apps/team-a/.
+    # Git branch protection rules enforce this at the repo level.
+    path: k8s-idp/apps/team-b
+
+  destination:
+    server: https://kubernetes.default.svc  # Local cluster
+
+    # Team-b workloads are strictly confined to this namespace.
+    # Cross-namespace deployment attempts are blocked by ArgoCD.
+    namespace: team-b
+
+  syncPolicy:
+    automated:
+      # prune: true → deleted manifests in apps/team-b/ are removed
+      # from the cluster. Keeps the cluster clean as team-b evolves
+      # their workloads over time.
+      prune: true
+
+      # selfHeal: true → cluster state is always reconciled back to
+      # what team-b has committed in Git. No manual drift allowed.
+      selfHeal: true
+
+    syncOptions:
+      # Create team-b namespace automatically if missing.
+      # Defensive — platform-namespaces app should create it first,
+      # but this ensures team-b-apps never fails due to a missing namespace.
+      - CreateNamespace=true

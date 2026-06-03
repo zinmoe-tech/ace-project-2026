@@ -35,7 +35,7 @@ spec:
   source:
     # The Git repository ArgoCD will watch for changes.
     # Replace YOUR_USERNAME with your actual GitHub username.
-    repoURL: https://github.com/YOUR_USERNAME/k8s-idp
+    repoURL: https://github.com/zinmoe-tech/ace-project-2026.git
 
     # Which Git branch/tag/commit to track.
     # HEAD = always latest commit on the default branch.
@@ -46,7 +46,7 @@ spec:
     # ArgoCD will find ALL yaml files in this folder — including
     # platform-app.yaml, team-a-app.yaml, team-b-app.yaml —
     # and sync them as child Applications automatically.
-    path: clusters/prod/argocd
+    path: k8s-idp/clusters/prod/argocd
 
   destination:
     # The cluster to deploy into.
