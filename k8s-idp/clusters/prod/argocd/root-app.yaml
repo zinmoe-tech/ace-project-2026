@@ -1,0 +1,76 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: clusters/prod/argocd/root-app.yaml
+#
+# PURPOSE:
+#   This is the single entry point for the entire GitOps setup.
+#   It is the ONLY file you ever apply manually with kubectl.
+#   After this is applied, ArgoCD takes over and manages everything else.
+#
+#   Pattern: "App of Apps"
+#   This Application watches the clusters/prod/argocd/ folder.
+#   Any Application YAML you drop in that folder is auto-discovered
+#   and synced by ArgoCD — no manual registration needed.
+#
+#   Think of it as: "ArgoCD watching itself + all child apps"
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: argoproj.io/v1alpha1  # ArgoCD's API group — not a core k8s resource
+kind: Application                  # ArgoCD custom resource — defines one deployment unit
+metadata:
+  name: root-app                   # Name shown in the ArgoCD UI — keep it meaningful
+  namespace: argocd                # All Application resources MUST live in argocd namespace
+
+  finalizers:
+    # Prevents this Application from being deleted while it still
+    # has child Application resources running in the cluster.
+    # Without this, deleting root-app would leave orphaned apps behind.
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default                 # ArgoCD Project this app belongs to.
+                                   # "default" allows all namespaces/repos.
+                                   # We'll replace this with "platform" in Phase 2
+                                   # when we add proper AppProject restrictions.
+
+  source:
+    # The Git repository ArgoCD will watch for changes.
+    # Replace YOUR_USERNAME with your actual GitHub username.
+    repoURL: https://github.com/YOUR_USERNAME/k8s-idp
+
+    # Which Git branch/tag/commit to track.
+    # HEAD = always latest commit on the default branch.
+    # In production you'd pin this to a tag e.g. "v1.0.0" for stability.
+    targetRevision: HEAD
+
+    # The folder inside the repo that ArgoCD will recursively sync.
+    # ArgoCD will find ALL yaml files in this folder — including
+    # platform-app.yaml, team-a-app.yaml, team-b-app.yaml —
+    # and sync them as child Applications automatically.
+    path: clusters/prod/argocd
+
+  destination:
+    # The cluster to deploy into.
+    # "kubernetes.default.svc" means the same cluster ArgoCD runs in.
+    # For multi-cluster setups this would be an external cluster API URL.
+    server: https://kubernetes.default.svc
+
+    # Namespace where these Application resources will be created.
+    # Application resources always live in the argocd namespace.
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      # prune: true → if you DELETE a yaml file from the argocd/ folder,
+      # ArgoCD will also delete the corresponding Application from the cluster.
+      # Without this, removed apps keep running as ghosts forever.
+      prune: true
+
+      # selfHeal: true → if someone manually edits an Application via
+      # kubectl or the ArgoCD UI, ArgoCD will revert it back to match Git.
+      # This enforces Git as the single source of truth.
+      selfHeal: true
+
+    syncOptions:
+      # Automatically create the "argocd" namespace if it doesn't exist.
+      # Useful during first-time bootstrapping on a fresh cluster.
+      - CreateNamespace=true
