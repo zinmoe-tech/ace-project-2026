@@ -13,3 +13,6 @@ id_rsa
 id_rsa.pub
 
 *.log
+
+# local-only secret, never commit
+k8s-idp/reset password

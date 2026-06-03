@@ -1,0 +1,149 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: clusters/prod/namespaces/teams.yaml
+#
+# PURPOSE:
+#   Defines the Kubernetes namespaces for all tenant teams along with
+#   their resource budgets and default container limits.
+#
+#   Three resource types per team:
+#
+#   1. Namespace     — the isolated boundary for a team's workloads.
+#                      Labels enforce Pod Security Admission (PSA) policy.
+#
+#   2. ResourceQuota — caps the TOTAL resources a namespace can consume.
+#                      Prevents one team from starving the rest of the cluster.
+#
+#   3. LimitRange    — sets DEFAULT limits on individual containers.
+#                      If a developer forgets to set resource requests/limits
+#                      in their Deployment, LimitRange fills in safe defaults.
+#                      Also prevents unbounded containers (no limits = bad).
+#
+#   Managed by: platform-namespaces ArgoCD Application
+#   Modified by: platform engineers only — NOT individual teams
+# ═══════════════════════════════════════════════════════════════════════
+
+
+# ─────────────────────────────────────────────────────────────────────
+# TEAM-A NAMESPACE
+# ─────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace                    # Core Kubernetes resource — creates an isolated workspace
+metadata:
+  name: team-a                     # Namespace name — referenced by all team-a workloads
+
+  labels:
+    team: team-a                   # Identifies ownership — used by NetworkPolicy selectors
+                                   # and ArgoCD Application destination matching
+
+    # Pod Security Admission (PSA) label — enforces security standards at the namespace level.
+    # "restricted" = strictest policy: no privileged containers, no root, read-only root FS.
+    # Other options: "baseline" (moderate) or "privileged" (no restrictions — avoid for tenants).
+    pod-security.kubernetes.io/enforce: restricted
+
+---
+# ResourceQuota: caps the total resource consumption for the entire team-a namespace.
+# If the namespace hits any of these limits, new pods are rejected until usage drops.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team-a-quota               # Descriptive name — visible in kubectl describe quota
+  namespace: team-a                # Applies exclusively to the team-a namespace
+
+spec:
+  hard:
+    # CPU requests: minimum CPU guaranteed across ALL team-a pods combined.
+    # Scheduler uses this to decide which node to place pods on.
+    requests.cpu: "4"
+
+    # Memory requests: minimum memory guaranteed across ALL team-a pods combined.
+    requests.memory: 8Gi
+
+    # CPU limits: maximum CPU team-a pods can burst to in total.
+    # Set to 2× requests to allow bursting but prevent monopolizing the node.
+    limits.cpu: "8"
+
+    # Memory limits: maximum memory team-a pods can use in total.
+    # Unlike CPU, exceeding memory limit kills the container (OOMKilled).
+    limits.memory: 16Gi
+
+    # Maximum number of pods team-a can run at any time.
+    # Prevents runaway HPA or accidental mass deployment.
+    pods: "20"
+
+---
+# LimitRange: sets per-CONTAINER defaults and bounds within team-a namespace.
+# Applies to every new container that doesn't explicitly set its own limits.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: team-a-limitrange          # Name visible in kubectl describe limitrange
+  namespace: team-a                # Scoped to team-a only
+
+spec:
+  limits:
+    - type: Container              # Applies to individual containers (not pods or PVCs)
+
+      # default: injected as the container's LIMIT if the developer omits it.
+      # Protects the node from a single runaway container consuming all resources.
+      default:
+        cpu: 500m                  # 0.5 CPU core maximum per container by default
+        memory: 256Mi              # 256MB memory maximum per container by default
+
+      # defaultRequest: injected as the container's REQUEST if the developer omits it.
+      # Used by the scheduler for pod placement decisions.
+      # Request should always be less than or equal to limit.
+      defaultRequest:
+        cpu: 100m                  # 0.1 CPU core requested per container by default
+        memory: 128Mi              # 128MB memory requested per container by default
+
+
+# ─────────────────────────────────────────────────────────────────────
+# TEAM-B NAMESPACE
+# ─────────────────────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: Namespace                    # Separate namespace = separate security + quota boundary
+metadata:
+  name: team-b                     # Team-b's isolated workspace
+
+  labels:
+    team: team-b                   # Ownership label — used by NetworkPolicy and ArgoCD
+
+    # Same "restricted" PSA policy as team-a.
+    # Both teams operate under the same security baseline.
+    # Individual teams cannot change this — only platform engineers can.
+    pod-security.kubernetes.io/enforce: restricted
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team-b-quota               # Team-b gets the same quota as team-a by default.
+  namespace: team-b                # Adjust per-team based on actual workload needs.
+
+spec:
+  hard:
+    requests.cpu: "4"              # 4 CPU cores total request budget for team-b
+    requests.memory: 8Gi           # 8GiB total memory request budget for team-b
+    limits.cpu: "8"                # 8 CPU cores total limit budget for team-b
+    limits.memory: 16Gi            # 16GiB total memory limit budget for team-b
+    pods: "20"                     # Max 20 pods running simultaneously in team-b
+
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: team-b-limitrange          # Per-container defaults for team-b namespace
+  namespace: team-b
+
+spec:
+  limits:
+    - type: Container              # Applies to every container in team-b namespace
+
+      default:
+        cpu: 500m                  # Default CPU limit per container — prevents runaway usage
+        memory: 256Mi              # Default memory limit per container
+
+      defaultRequest:
+        cpu: 100m                  # Default CPU request — used for scheduling decisions
+        memory: 128Mi              # Default memory request — used for scheduling decisions
