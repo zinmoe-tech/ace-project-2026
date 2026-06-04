@@ -1,0 +1,172 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: clusters/prod/namespaces/team-a-rbac.yaml
+#
+# PURPOSE:
+#   Defines two roles for team-a inside their namespace only:
+#
+#   1. developer role — can deploy, scale, and debug workloads
+#                       but CANNOT touch secrets or RBAC rules
+#
+#   2. viewer role    — read-only access to all resources in team-a
+#                       useful for stakeholders, QA, on-call reviewers
+#
+#   Uses Role + RoleBinding (NOT ClusterRole) — permissions are
+#   strictly confined to the team-a namespace. Team-a developers
+#   have ZERO access to team-b or any platform namespace.
+#
+#   Managed by: platform-namespaces ArgoCD Application
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── Role 1: developer — can manage workloads in team-a ──────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role                         # Namespace-scoped — ONLY applies inside team-a
+metadata:
+  name: developer
+  namespace: team-a                # Strictly confined to team-a namespace
+  labels:
+    team: team-a
+    managed-by: argocd
+
+rules:
+  # Core workload management — deploy and operate applications
+  - apiGroups: ["", "apps"]
+    resources:
+      - pods                       # View running pods
+      - pods/log                   # Read application logs (kubectl logs)
+      - pods/exec                  # Exec into pods for debugging (kubectl exec)
+      - pods/portforward           # Port-forward to pods (kubectl port-forward)
+      - deployments                # Create/update/rollback deployments
+      - replicasets                # View replicasets (created by deployments)
+      - statefulsets               # Manage stateful applications
+      - services                   # Create/manage services
+      - configmaps                 # Manage application configuration
+      - endpoints                  # View service endpoints
+      - events                     # View namespace events (kubectl get events)
+      - persistentvolumeclaims     # Manage storage claims for the team
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Autoscaling — manage HPA for their own workloads
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers   # Create and tune HPA for team-a deployments
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Ingress — manage their own ingress rules
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses                  # Create/update ingress rules for team-a services
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # NOTE: Secrets are intentionally EXCLUDED from developer role.
+  # Team-a developers cannot read/write Secrets directly.
+  # Secrets are managed by External Secrets Operator (Phase 3).
+  # This prevents accidental secret exposure via kubectl.
+
+  # NOTE: NetworkPolicy is intentionally EXCLUDED.
+  # Only platform engineers can modify network isolation rules.
+  # Prevents teams from accidentally opening cross-namespace traffic.
+
+---
+# ── RoleBinding 1: bind developer role to team-a developers ─────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding                  # Namespace-scoped binding — team-a only
+metadata:
+  name: team-a-developer-binding
+  namespace: team-a                # Binding only applies inside team-a
+  labels:
+    team: team-a
+    managed-by: argocd
+
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: developer                  # References the Role defined above
+
+subjects:
+  # SSO group — all members of this group get developer access in team-a
+  - kind: Group
+    name: team-a-developers        # Maps to your SSO/OIDC group
+    apiGroup: rbac.authorization.k8s.io
+
+  # ServiceAccount for local testing
+  # Usage: kubectl --as=system:serviceaccount:team-a:team-a-dev-sa get pods -n team-a
+  - kind: ServiceAccount
+    name: team-a-dev-sa
+    namespace: team-a
+
+---
+# ── Role 2: viewer — read-only access to team-a resources ───────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role                         # Namespace-scoped read-only role
+metadata:
+  name: viewer
+  namespace: team-a
+  labels:
+    team: team-a
+    managed-by: argocd
+
+rules:
+  # Read-only access to all common resources in team-a namespace.
+  # get/list/watch = read operations only. No create/update/delete.
+  - apiGroups: ["", "apps", "autoscaling", "networking.k8s.io", "batch"]
+    resources:
+      - pods
+      - pods/log                   # Can read logs but cannot exec
+      - deployments
+      - replicasets
+      - statefulsets
+      - services
+      - configmaps
+      - endpoints
+      - events
+      - horizontalpodautoscalers
+      - ingresses
+      - persistentvolumeclaims
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"] # Read-only — no mutations allowed
+
+---
+# ── RoleBinding 2: bind viewer role to team-a viewers ───────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-a-viewer-binding
+  namespace: team-a
+  labels:
+    team: team-a
+    managed-by: argocd
+
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: viewer                     # References the viewer Role above
+
+subjects:
+  - kind: Group
+    name: team-a-viewers           # SSO group for read-only stakeholders
+    apiGroup: rbac.authorization.k8s.io
+
+  # ServiceAccount for local testing
+  # Usage: kubectl --as=system:serviceaccount:team-a:team-a-viewer-sa get pods -n team-a
+  - kind: ServiceAccount
+    name: team-a-viewer-sa
+    namespace: team-a
+
+---
+# ── ServiceAccounts for local testing ───────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: team-a-dev-sa              # Impersonate a team-a developer locally
+  namespace: team-a
+  labels:
+    purpose: local-testing
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: team-a-viewer-sa           # Impersonate a team-a viewer locally
+  namespace: team-a
+  labels:
+    purpose: local-testing

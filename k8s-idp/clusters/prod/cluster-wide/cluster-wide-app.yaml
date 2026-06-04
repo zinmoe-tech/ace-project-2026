@@ -1,0 +1,44 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: clusters/prod/argocd/cluster-wide-app.yaml
+#
+# PURPOSE:
+#   ArgoCD Application that syncs cluster-wide resources — ClusterRoles,
+#   ClusterRoleBindings, and other non-namespaced platform resources.
+#
+#   Separate from platform-namespaces intentionally:
+#   - platform-namespaces manages namespace-scoped resources
+#   - cluster-wide manages cluster-scoped resources (RBAC, PSPs, etc.)
+#   Keeping them separate gives clearer sync history and easier debugging.
+#
+#   Watches: clusters/prod/cluster-wide/
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-wide
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    tier: platform
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/zinmoe-tech/ace-project-2026.git
+    targetRevision: HEAD
+    path: k8s-idp/clusters/prod/cluster-wide  # watches this folder
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default             # ClusterRole/ClusterRoleBinding are cluster-scoped
+                                   # so destination namespace is ignored for them
+
+  syncPolicy:
+    automated:
+      prune: true                  # Remove ClusterRoles deleted from Git
+      selfHeal: true               # Revert manual RBAC changes
+    syncOptions:
+      - CreateNamespace=true

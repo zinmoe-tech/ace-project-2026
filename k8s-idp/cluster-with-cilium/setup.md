@@ -4,9 +4,13 @@ bash# Make sure you're inside the repo root
 cd k8s-idp
 
 # Create the cluster
+
 kind create cluster --config kind-config.yaml
+
 Wait ~1 minute. Then check nodes:
-bashkubectl get nodes
+
+kubectl get nodes
+
 You'll see this — NotReady is expected because there's no CNI yet:
 NAME                        STATUS     ROLES           AGE
 idp-cluster-control-plane   NotReady   control-plane   30s
@@ -18,11 +22,14 @@ Tell me when you see this output and we move to Step 2.
 # Step 2 — Install the Cilium CLI
 This is a standalone tool on your laptop — separate from the cluster:
 bash# macOS
+
 brew install cilium-cli
 
 Install Cilium CLI on Linux
 # Detect your CPU architecture automatically
+
 ARCH=$(uname -m)
+
 case $ARCH in
   x86_64)  ARCH="amd64" ;;
   aarch64) ARCH="arm64" ;;
@@ -73,11 +80,13 @@ Expected output:
 cilium-cli: v0.16.10
 
 # Step 3 — Add the Cilium Helm repo
+
 bash# Add Cilium's official Helm repo
 
 helm repo add cilium https://helm.cilium.io/
 
 # Fetch latest chart index
+
 helm repo update
 
 # Confirm it's there
@@ -119,7 +128,7 @@ helm install cilium cilium/cilium \
   --version 1.15.5 \
   --namespace kube-system \
   --set kubeProxyReplacement=true \
-  --set k8sServiceHost=PASTE_IP_HERE \
+  --set k8sServiceHost=172.19.0.4 \
   --set k8sServicePort=6443 \
   --set routingMode=tunnel \
   --set tunnelProtocol=vxlan \
