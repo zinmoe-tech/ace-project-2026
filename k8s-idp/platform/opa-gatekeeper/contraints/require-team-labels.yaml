@@ -1,0 +1,33 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: platform/opa-gatekeeper/constraints/require-team-labels.yaml
+#
+# PURPOSE:
+#   Activates the RequireTeamLabels policy for Deployments in tenant
+#   namespaces. Every Deployment must have "team" and "app" labels.
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: RequireTeamLabels                             # Matches template crd.spec.names.kind
+metadata:
+  name: require-team-labels
+  labels:
+    managed-by: argocd
+
+spec:
+  enforcementAction: deny
+
+  match:
+    kinds:
+      - apiGroups: ["apps"]                         # Deployments are in the apps API group
+        kinds: ["Deployment"]                       # Only check Deployments, not Pods
+
+    namespaces:
+      - team-a
+      - team-b
+
+  # Parameters passed into the Rego policy via input.parameters.labels
+  # This is the list of label keys every Deployment must have.
+  parameters:
+    labels:
+      - "team"                                      # e.g. team: team-a
+      - "app"                                       # e.g. app: payment-service

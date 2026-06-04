@@ -1,0 +1,76 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: platform/opa-gatekeeper/templates/require-team-labels-template.yaml
+#
+# PURPOSE:
+#   Blocks Deployments that are missing required metadata labels.
+#
+#   Why require labels?
+#   - Labels are how you identify ownership of resources in production.
+#     "Which team owns this Deployment?" without labels = mystery.
+#   - Prometheus uses labels to group metrics per team.
+#   - Cost allocation tools use labels to split cloud spend per team.
+#   - NetworkPolicy selectors rely on labels to target the right pods.
+#   - On-call runbooks reference labels to find related resources quickly.
+#
+#   Required labels enforced:
+#   - "team"    → identifies owning team e.g. team-a, team-b
+#   - "app"     → identifies the application e.g. payment-service
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: requireteamlabels                           # Lowercase no hyphens
+  labels:
+    managed-by: argocd
+
+spec:
+  crd:
+    spec:
+      names:
+        kind: RequireTeamLabels                     # New CRD kind
+
+      # Parameters allow the Constraint to pass a list of required labels.
+      # This makes the template reusable — different constraints can
+      # require different sets of labels without changing the Rego logic.
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            labels:                                 # Parameter: list of required label keys
+              type: array
+              items:
+                type: string
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package requireteamlabels
+
+        # violation fires for each required label that is missing
+        violation[{"msg": msg}] {
+
+          # Get the list of required labels passed in from the Constraint
+          required := input.parameters.labels[_]
+
+          # Get all label keys present on the resource being created
+          provided := {label | input.review.object.metadata.labels[label]}
+
+          # Check if the required label is NOT in the provided set
+          not provided[required]
+
+          msg := sprintf(
+            "Deployment '%v' is missing required label '%v'. Add it to metadata.labels.",
+            [input.review.object.metadata.name, required]
+          )
+        }
+
+        # Also block if the labels field itself is completely missing
+        violation[{"msg": msg}] {
+          not input.review.object.metadata.labels
+
+          msg := sprintf(
+            "Deployment '%v' has no labels at all. Add metadata.labels with 'team' and 'app' keys.",
+            [input.review.object.metadata.name]
+          )
+        }

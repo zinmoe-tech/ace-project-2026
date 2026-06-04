@@ -1,0 +1,26 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: platform/opa-gatekeeper/constraints/require-resource-limits.yaml
+#
+# PURPOSE:
+#   Activates the RequireResourceLimits policy for tenant namespaces.
+#   Every container in team-a and team-b MUST define CPU and memory limits.
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: RequireResourceLimits                         # Matches template crd.spec.names.kind
+metadata:
+  name: require-resource-limits
+  labels:
+    managed-by: argocd
+
+spec:
+  enforcementAction: deny                           # Block non-compliant pods immediately
+
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]                              # Check every Pod at creation time
+
+    namespaces:
+      - team-a
+      - team-b

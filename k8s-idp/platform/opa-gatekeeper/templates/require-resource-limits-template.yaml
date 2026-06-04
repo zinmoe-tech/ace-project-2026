@@ -1,0 +1,86 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: platform/opa-gatekeeper/templates/require-resource-limits-template.yaml
+#
+# PURPOSE:
+#   Blocks pods that do not define CPU and memory limits on ALL containers.
+#
+#   Why require resource limits?
+#   - Without limits a single container can consume ALL CPU/memory on a node
+#     causing other pods (including platform tools) to be evicted or OOMKilled.
+#   - Kubernetes scheduler needs limits for proper bin-packing decisions.
+#   - ResourceQuota at the namespace level only works if containers set limits.
+#     If limits are missing, the quota cannot be enforced correctly.
+#
+#   LimitRange provides DEFAULT limits, but a developer can still explicitly
+#   set resources: {} which overrides the default to nothing.
+#   This policy catches that case too.
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: requireresourcelimits                       # Lowercase, no hyphens — becomes CRD kind
+  labels:
+    managed-by: argocd
+
+spec:
+  crd:
+    spec:
+      names:
+        kind: RequireResourceLimits                 # New CRD kind created by this template
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package requireresourcelimits
+
+        # Violation: container is missing the entire resources.limits block
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+
+          # Check if resources.limits is completely missing
+          not container.resources.limits
+
+          msg := sprintf(
+            "container '%v' has no resource limits defined. Add resources.limits.cpu and resources.limits.memory.",
+            [container.name]
+          )
+        }
+
+        # Violation: container has resources.limits but CPU limit is missing
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+
+          # limits block exists but cpu key is missing inside it
+          container.resources.limits
+          not container.resources.limits.cpu
+
+          msg := sprintf(
+            "container '%v' is missing resources.limits.cpu. Add an explicit CPU limit.",
+            [container.name]
+          )
+        }
+
+        # Violation: container has resources.limits but memory limit is missing
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+
+          container.resources.limits
+          not container.resources.limits.memory
+
+          msg := sprintf(
+            "container '%v' is missing resources.limits.memory. Add an explicit memory limit.",
+            [container.name]
+          )
+        }
+
+        # Also check initContainers — they need limits too
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          not container.resources.limits
+
+          msg := sprintf(
+            "initContainer '%v' has no resource limits defined.",
+            [container.name]
+          )
+        }

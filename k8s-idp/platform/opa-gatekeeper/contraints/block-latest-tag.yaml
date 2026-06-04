@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: platform/opa-gatekeeper/constraints/block-latest-tag.yaml
+#
+# PURPOSE:
+#   Activates the BlockLatestTag policy and defines WHERE to enforce it.
+#   Scoped to team-a and team-b namespaces only — platform namespace
+#   is excluded because some platform tools use :latest internally.
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: constraints.gatekeeper.sh/v1beta1      # Gatekeeper constraints API
+kind: BlockLatestTag                                # Must match ConstraintTemplate crd.spec.names.kind
+metadata:
+  name: block-latest-tag                            # Name of this enforcement instance
+  labels:
+    managed-by: argocd
+
+spec:
+  # enforcementAction controls what happens when a violation is found:
+  # "deny"  → block the request immediately (use in production)
+  # "warn"  → allow but show a warning (use when first rolling out)
+  # "dryrun"→ only log violations, never block (use for testing)
+  # Start with "warn" then switch to "deny" once teams are compliant.
+  enforcementAction: deny
+
+  match:
+    # Which resource types this constraint applies to
+    kinds:
+      - apiGroups: [""]             # "" = core API group
+        kinds: ["Pod"]              # Enforce on Pod creation
+
+    # Which namespaces to enforce in.
+    # Platform namespaces (argocd, kube-system) are intentionally excluded.
+    namespaces:
+      - team-a
+      - team-b

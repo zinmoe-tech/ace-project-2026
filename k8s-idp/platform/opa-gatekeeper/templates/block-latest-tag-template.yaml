@@ -1,0 +1,85 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: platform/opa-gatekeeper/templates/block-latest-tag-template.yaml
+#
+# PURPOSE:
+#   Defines the policy LOGIC that blocks container images using the
+#   ":latest" tag or no tag at all.
+#
+#   Why block :latest?
+#   - :latest is mutable — the same tag can point to different images
+#     on different days. This makes deployments non-reproducible.
+#   - You can never tell what version is actually running in production.
+#   - Rolling back becomes impossible — what was the previous :latest?
+#   - Best practice: always use explicit tags e.g. nginx:1.25.3
+#
+#   This template creates a new CRD called "BlockLatestTag" which
+#   the Constraint (next file) uses to activate enforcement.
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: templates.gatekeeper.sh/v1             # Gatekeeper API group for templates
+kind: ConstraintTemplate                            # Always ConstraintTemplate for the logic part
+metadata:
+  name: blocklatestag                               # Must be lowercase, no hyphens
+                                                    # This becomes the new CRD kind name
+  labels:
+    managed-by: argocd
+
+spec:
+  crd:
+    spec:
+      names:
+        kind: BlockLatestTag                        # Creates a new CRD of this kind
+                                                    # Used in the Constraint file as "kind: BlockLatestTag"
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh           # Always this target for k8s admission
+      rego: |
+        # Package name — must match the template name convention
+        package blocklatestag
+
+        # violation block — Gatekeeper calls this function for every resource.
+        # If ANY violation is produced → the request is DENIED.
+        # The "msg" field is shown to the developer as the error message.
+        violation[{"msg": msg}] {
+
+          # Get all containers from the pod spec.
+          # input.review.object = the resource being created/updated.
+          # [_] means "for each item in the array" — loops over all containers.
+          container := input.review.object.spec.containers[_]
+
+          # Check if the image ends with ":latest"
+          # endswith() is a built-in Rego function
+          endswith(container.image, ":latest")
+
+          # Build a human-readable error message shown to the developer
+          msg := sprintf(
+            "container '%v' uses image '%v' with ':latest' tag. Specify an explicit tag e.g. nginx:1.25.3",
+            [container.name, container.image]
+          )
+        }
+
+        # Also block images with NO tag at all e.g. "nginx" instead of "nginx:1.25.3"
+        # Images without a tag implicitly use :latest — same problem.
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+
+          # contains() checks if ":" exists in the image name.
+          # If no ":" found → no tag specified → treat as :latest
+          not contains(container.image, ":")
+
+          msg := sprintf(
+            "container '%v' uses image '%v' with no tag. Specify an explicit tag e.g. nginx:1.25.3",
+            [container.name, container.image]
+          )
+        }
+
+        # Also check initContainers — they can also have :latest tags
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          endswith(container.image, ":latest")
+
+          msg := sprintf(
+            "initContainer '%v' uses image '%v' with ':latest' tag. Use an explicit tag.",
+            [container.name, container.image]
+          )
+        }
