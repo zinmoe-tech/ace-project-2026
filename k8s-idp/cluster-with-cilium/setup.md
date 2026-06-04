@@ -1,4 +1,4 @@
-Step 1 — Create the kind cluster
+# Step 1 — Create the kind cluster
 bash# Make sure you're inside the repo root
 cd k8s-idp
 
@@ -14,17 +14,64 @@ idp-cluster-worker2         NotReady   <none>          28s
 idp-cluster-worker3         NotReady   <none>          28s
 Tell me when you see this output and we move to Step 2.
 
-Step 2 — Install the Cilium CLI
+# Step 2 — Install the Cilium CLI
 This is a standalone tool on your laptop — separate from the cluster:
 bash# macOS
 brew install cilium-cli
+
+Install Cilium CLI on Linux
+# Detect your CPU architecture automatically
+ARCH=$(uname -m)
+case $ARCH in
+  x86_64)  ARCH="amd64" ;;
+  aarch64) ARCH="arm64" ;;
+esac
+
+# Set version
+CILIUM_CLI_VERSION="v0.16.10"
+
+# Download the binary + checksum
+curl -sL "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${ARCH}.tar.gz" \
+  -o cilium.tar.gz
+
+# Verify checksum (security best practice)
+curl -sL "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${ARCH}.tar.gz.sha256sum" \
+  -o cilium.tar.gz.sha256sum
+sha256sum --check cilium.tar.gz.sha256sum
+
+# Extract and move to PATH
+tar xz -f cilium.tar.gz
+sudo mv cilium /usr/local/bin/cilium
+
+# Clean up downloaded files
+rm cilium.tar.gz cilium.tar.gz.sha256sum
+
+# Verify
+cilium version --client
+
+Also double-check your other tools are the Linux versions too:
+
+# kind — Linux install
+curl -sLo /usr/local/bin/kind \
+  https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+chmod +x /usr/local/bin/kind
+kind version
+
+# helm — Linux install (if not already installed)
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+helm version
+
+# kubectl — Linux install (if not already installed)
+curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+kubectl version --client
 
 # Verify
 cilium version --client
 Expected output:
 cilium-cli: v0.16.10
 
-Step 3 — Add the Cilium Helm repo
+# Step 3 — Add the Cilium Helm repo
 bash# Add Cilium's official Helm repo
 helm repo add cilium https://helm.cilium.io/
 
@@ -38,7 +85,7 @@ Expected output:
 NAME            CHART VERSION   APP VERSION
 cilium/cilium   1.15.5          1.15.5
 
-Step 4 — Pre-load the Cilium image into kind nodes
+# Step 4 — Pre-load the Cilium image into kind nodes
 Kind nodes are Docker containers. Without this step, each node would pull the Cilium image from the internet at startup — slow and fragile. Pre-loading puts the image directly inside the kind nodes:
 
 # Pull image to your local Docker first
@@ -53,13 +100,13 @@ Image: "quay.io/cilium/cilium:v1.15.5" with ID "sha256:..." not yet present on n
 Loading image: quay.io/cilium/cilium:v1.15.5
 Image loaded successfully
 
-Step 5 — Get the control plane IP
+# Step 5 — Get the control plane IP
 Cilium needs to know where the API server is because it's replacing kube-proxy:
 
 kubectl get node idp-cluster-control-plane \
   -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}'
 
-Step 6 — Install Cilium via Helm
+# Step 6 — Install Cilium via Helm
 Now paste your control plane IP into this command where it says PASTE_IP_HERE:
 
 helm install cilium cilium/cilium \
@@ -82,7 +129,7 @@ hubble.relay.enabled=true    >>    Enables Hubble backend for network flows
 hubble.ui.enabled=true    >>    Enables Hubble browser UI
 image.pullPolicy=IfNotPresent    >>    Use the pre-loaded image — don't re-pull
 
-Step 7 — Watch Cilium pods start
+# Step 7 — Watch Cilium pods start
 
 # Watch Cilium pods come up in real time
 kubectl get pods -n kube-system -w | grep cilium
@@ -94,7 +141,7 @@ cilium-xxxxx   1/1   Running   0   60s
 cilium-xxxxx   1/1   Running   0   60s
 cilium-operator-xxxxx   1/1   Running   0   60s
 
-Step 8 — Check nodes are now Ready
+# Step 8 — Check nodes are now Ready
 kubectl get nodes
 
 All nodes should now show Ready:
@@ -104,7 +151,7 @@ idp-cluster-worker          Ready    <none>          5m
 idp-cluster-worker2         Ready    <none>          5m
 idp-cluster-worker3         Ready    <none>          5m
 
-Step 9 — Verify Cilium is healthy
+# Step 9 — Verify Cilium is healthy
 cilium status
 
 Expected output — everything should be green:
@@ -119,7 +166,7 @@ Expected output — everything should be green:
 Deployment             cilium-operator    Desired: 1, Ready: 1/1
 DaemonSet              cilium             Desired: 4, Ready: 4/4
 
-Step 10 — Open Hubble UI
+# Step 10 — Open Hubble UI
 
 cilium hubble ui
 
