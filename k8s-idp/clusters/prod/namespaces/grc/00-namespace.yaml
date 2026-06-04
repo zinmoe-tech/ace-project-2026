@@ -4,5 +4,5 @@ kind: Namespace
 metadata:
   labels:
     istio-injection: enabled
-    kubernetes.io/metadata.name: grc-team
-  name: grc-team
+    kubernetes.io/metadata.name: test-team
+  name: test-team
