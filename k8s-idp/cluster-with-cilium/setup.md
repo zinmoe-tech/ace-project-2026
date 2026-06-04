@@ -1,5 +1,6 @@
 # Step 1 — Create the kind cluster
 bash# Make sure you're inside the repo root
+
 cd k8s-idp
 
 # Create the cluster
