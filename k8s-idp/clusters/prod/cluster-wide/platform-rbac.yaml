@@ -1,0 +1,116 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: clusters/prod/cluster-wide/platform-rbac.yaml
+#
+# PURPOSE:
+#   Defines cluster-wide permissions for the platform engineering team.
+#   Platform engineers need access to ALL namespaces to manage infra,
+#   debug tenant issues, and operate cluster-wide tooling.
+#
+#   Uses ClusterRole + ClusterRoleBinding (not Role + RoleBinding)
+#   because platform access spans ALL namespaces, not just one.
+#
+#   Managed by: platform-namespaces ArgoCD Application
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── ClusterRole: defines WHAT actions are allowed ───────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole                  # Cluster-scoped — applies across all namespaces
+metadata:
+  name: platform-engineer          # Referenced by the ClusterRoleBinding below
+  labels:
+    team: platform
+    managed-by: argocd
+
+rules:
+  # Full access to core workload resources across all namespaces
+  - apiGroups: ["", "apps", "batch"]
+    resources:
+      - pods                       # View/exec into pods for debugging
+      - pods/log                   # Read pod logs
+      - pods/exec                  # Exec into pods (kubectl exec)
+      - deployments                # Manage deployments
+      - statefulsets               # Manage statefulsets
+      - daemonsets                 # Manage daemonsets
+      - replicasets                # View replicasets
+      - jobs                       # Manage batch jobs
+      - cronjobs                   # Manage cronjobs
+      - services                   # Manage services
+      - endpoints                  # View endpoints
+      - configmaps                 # Manage configmaps
+      - secrets                    # Manage secrets (platform only)
+      - namespaces                 # View all namespaces
+      - nodes                      # View node info
+      - persistentvolumes          # Manage cluster-wide storage
+      - persistentvolumeclaims     # Manage storage claims
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Access to autoscaling resources
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers   # Manage HPA resources
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Access to networking resources
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses                  # Manage ingress rules
+      - networkpolicies            # Manage network isolation policies
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Access to RBAC resources — platform manages roles for all teams
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Access to resource quotas and limit ranges
+  - apiGroups: [""]
+    resources:
+      - resourcequotas             # View/manage team resource budgets
+      - limitranges                # View/manage container limit defaults
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+# ── ClusterRoleBinding: assigns the ClusterRole to platform engineers ─
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding           # Cluster-scoped binding — applies everywhere
+metadata:
+  name: platform-engineer-binding
+  labels:
+    team: platform
+    managed-by: argocd
+
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platform-engineer          # Must match the ClusterRole name above
+
+subjects:
+  # Bind to a Kubernetes group — any user in this group gets the ClusterRole.
+  # In a real cluster this maps to your SSO/OIDC provider group (Okta, GitHub).
+  # For local testing we'll use a ServiceAccount instead (see below).
+  - kind: Group
+    name: platform-engineers       # SSO group name — configure in your OIDC provider
+    apiGroup: rbac.authorization.k8s.io
+
+  # ServiceAccount for local testing — lets you impersonate a platform engineer
+  # kubectl --as=system:serviceaccount:default:platform-engineer-sa get nodes
+  - kind: ServiceAccount
+    name: platform-engineer-sa     # Created below
+    namespace: default
+
+---
+# ── ServiceAccount for local testing ────────────────────────────────
+# Lets you test platform-engineer permissions locally without SSO setup.
+# Usage: kubectl --as=system:serviceaccount:default:platform-engineer-sa get nodes
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-engineer-sa
+  namespace: default
+  labels:
+    team: platform
+    purpose: local-testing
