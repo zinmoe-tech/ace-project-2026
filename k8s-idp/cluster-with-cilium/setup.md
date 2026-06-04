@@ -73,6 +73,7 @@ cilium-cli: v0.16.10
 
 # Step 3 — Add the Cilium Helm repo
 bash# Add Cilium's official Helm repo
+
 helm repo add cilium https://helm.cilium.io/
 
 # Fetch latest chart index
