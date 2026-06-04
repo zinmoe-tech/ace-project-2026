@@ -81,6 +81,7 @@ helm repo update
 
 # Confirm it's there
 helm search repo cilium/cilium
+
 Expected output:
 
 NAME            CHART VERSION   APP VERSION
@@ -90,9 +91,11 @@ cilium/cilium   1.15.5          1.15.5
 Kind nodes are Docker containers. Without this step, each node would pull the Cilium image from the internet at startup — slow and fragile. Pre-loading puts the image directly inside the kind nodes:
 
 # Pull image to your local Docker first
+
 docker pull quay.io/cilium/cilium:v1.15.5
 
 # Push it into all kind cluster nodes
+
 kind load docker-image quay.io/cilium/cilium:v1.15.5 \
   --name idp-cluster
 
@@ -102,6 +105,7 @@ Loading image: quay.io/cilium/cilium:v1.15.5
 Image loaded successfully
 
 # Step 5 — Get the control plane IP
+
 Cilium needs to know where the API server is because it's replacing kube-proxy:
 
 kubectl get node idp-cluster-control-plane \
