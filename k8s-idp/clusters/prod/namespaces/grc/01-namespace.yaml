@@ -4,5 +4,5 @@ kind: Namespace
 metadata:
   labels:
     istio-injection: enabled
-    kubernetes.io/metadata.name: test-team
-  name: test-team
+    kubernetes.io/metadata.name: aaa-team
+  name: aaa-team
