@@ -102,11 +102,11 @@ Kind nodes are Docker containers. Without this step, each node would pull the Ci
 
 # Pull image to your local Docker first
 
-docker pull quay.io/cilium/cilium:v1.15.5
+docker pull quay.io/cilium/cilium:v1.19.4
 
 # Push it into all kind cluster nodes
 
-kind load docker-image quay.io/cilium/cilium:v1.15.5 \
+kind load docker-image quay.io/cilium/cilium:v1.19.4 \
   --name idp-cluster
 
 Expected output:
@@ -125,7 +125,7 @@ kubectl get node idp-cluster-control-plane \
 Now paste your control plane IP into this command where it says PASTE_IP_HERE:
 
 helm install cilium cilium/cilium \
-  --version 1.15.5 \
+  --version 1.19.4 \
   --namespace kube-system \
   --set kubeProxyReplacement=true \
   --set k8sServiceHost=172.19.0.4 \

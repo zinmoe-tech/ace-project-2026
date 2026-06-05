@@ -8,3 +8,7 @@ helm install gatekeeper gatekeeper/gatekeeper \
   --wait
 
 kubectl get pods -n gatekeeper-system
+
+# 2. Force Argo CD to pull the new commit immediately (instead of waiting ~3 min)
+kubectl -n argocd annotate application gatekeeper-policies \
+  argocd.argoproj.io/refresh=hard --overwrite

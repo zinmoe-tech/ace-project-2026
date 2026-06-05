@@ -21,6 +21,10 @@ apiVersion: templates.gatekeeper.sh/v1
 kind: ConstraintTemplate
 metadata:
   name: requireteamlabels                           # Lowercase no hyphens
+  annotations:
+    # Wave 1: apply templates BEFORE constraints so Gatekeeper can generate
+    # the RequireTeamLabels CRD that the matching Constraint (wave 2) needs.
+    argocd.argoproj.io/sync-wave: "1"
   labels:
     managed-by: argocd
 

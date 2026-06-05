@@ -21,6 +21,10 @@ kind: ConstraintTemplate                            # Always ConstraintTemplate 
 metadata:
   name: blocklatestag                               # Must be lowercase, no hyphens
                                                     # This becomes the new CRD kind name
+  annotations:
+    # Wave 1: apply templates BEFORE constraints so Gatekeeper can generate
+    # the BlockLatestTag CRD that the matching Constraint (wave 2) needs.
+    argocd.argoproj.io/sync-wave: "1"
   labels:
     managed-by: argocd
 

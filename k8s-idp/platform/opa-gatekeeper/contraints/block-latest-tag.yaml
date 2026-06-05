@@ -11,6 +11,10 @@ apiVersion: constraints.gatekeeper.sh/v1beta1      # Gatekeeper constraints API
 kind: BlockLatestTag                                # Must match ConstraintTemplate crd.spec.names.kind
 metadata:
   name: block-latest-tag                            # Name of this enforcement instance
+  annotations:
+    # Wave 2: applied AFTER the ConstraintTemplate (wave 1) so its CRD exists.
+    # Paired with SkipDryRunOnMissingResource on the Application.
+    argocd.argoproj.io/sync-wave: "2"
   labels:
     managed-by: argocd
 

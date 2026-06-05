@@ -40,3 +40,14 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # Constraints reference CRDs that Gatekeeper only generates AFTER the
+      # ConstraintTemplates are applied. Without this, Argo CD's up-front
+      # dry-run rejects those not-yet-existing kinds and aborts the WHOLE
+      # sync ("one or more synchronization tasks are not valid").
+      - SkipDryRunOnMissingResource=true
+    # Retry so the wave-2 Constraints reconcile once their CRDs exist.
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        maxDuration: 2m

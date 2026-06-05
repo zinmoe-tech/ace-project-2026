@@ -10,6 +10,10 @@ apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: RequireTeamLabels                             # Matches template crd.spec.names.kind
 metadata:
   name: require-team-labels
+  annotations:
+    # Wave 2: applied AFTER the ConstraintTemplate (wave 1) so its CRD exists.
+    # Paired with SkipDryRunOnMissingResource on the Application.
+    argocd.argoproj.io/sync-wave: "2"
   labels:
     managed-by: argocd
 

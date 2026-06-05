@@ -59,7 +59,7 @@ kubectl -n argocd create secret generic repo-ace-project-2026 \
   --from-literal=type=git \
   --from-literal=url=https://github.com/zinmoe-tech/ace-project-2026.git \
   --from-literal=username=zinmoe8988@gmail.com \
-  --from-literal=password=ghp_REPLACE_WITH_YOUR_TOKEN   # never commit a real token
+  --from-literal=password=  # never commit a real token
 
 # Login via CLI
 argocd login localhost:8080 \
@@ -74,3 +74,54 @@ argocd repo add https://github.com/zinmoe-tech/ace-project-2026.git
 # Output
 
 repository 'https://github.com/YOUR_USERNAME/k8s-idp' added
+
+
+###kubectl delete applications --all -n argocd --cascade=orphan
+
+kubectl delete application root-app -n argocd
+
+If it hangs (sits there, doesn't return), it's the finalizer. Ctrl+C and go to Step 2.
+
+Step 2 — Remove the finalizer (this is what unblocks it)
+
+The resources-finalizer.argocd.argoproj.io is holding it in Terminating. Strip it:
+
+
+kubectl patch application root-app -n argocd \
+  -p '{"metadata":{"finalizers":null}}' --type merge
+
+The Application disappears immediately after this.
+
+Step 3 — Confirm
+
+kubectl get applications -n argocd
+
+## How to remove git from ArgoCD
+
+Depends on how it was added — and you added it as a Kubernetes secret (repo-ace-project-2026), so the cleanest way is just to delete that secret.
+
+List the repo creds first
+
+kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=repository
+Remove it — two equivalent ways
+A. Delete the secret (matches how you added it — no CLI/core-mode hassle):
+
+
+kubectl delete secret repo-ace-project-2026 -n argocd
+B. Via the argocd CLI (if you prefer, but it needs the core-mode namespace set):
+
+
+kubectl config set-context --current --namespace=argocd
+argocd repo rm https://github.com/zinmoe-tech/ace-project-2026.git
+Either one removes the repo registration. A is simpler and avoids the argocd-cm not found core-mode errors you kept hitting.
+
+⚠️ Heads-up before you remove it
+That repo is the source for all your Applications (root-app and children). If you delete the credential while the apps still exist and the repo is private, their next sync/refresh will fail with authentication required: Repository not found — they'll go Unknown/ComparisonError. So either:
+
+Remove the apps first, or
+Only remove the repo if you're re-adding it (e.g., rotating the leaked token).
+Verify it's gone
+
+kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=repository
+# repo-ace-project-2026 should no longer be listed
+Want me to run option A for you?
