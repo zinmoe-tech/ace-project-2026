@@ -19,7 +19,7 @@
 apiVersion: templates.gatekeeper.sh/v1             # Gatekeeper API group for templates
 kind: ConstraintTemplate                            # Always ConstraintTemplate for the logic part
 metadata:
-  name: blocklatestag                               # Must be lowercase, no hyphens
+  name: blocklatesttag                              # MUST equal lowercase(kind) = "blocklatesttag" (BlockLatestTag)
                                                     # This becomes the new CRD kind name
   annotations:
     # Wave 1: apply templates BEFORE constraints so Gatekeeper can generate
