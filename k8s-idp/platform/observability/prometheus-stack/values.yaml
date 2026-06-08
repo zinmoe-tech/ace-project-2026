@@ -1,0 +1,154 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: platform/observability/prometheus-stack/values.yaml
+#
+# PURPOSE:
+#   Helm values for kube-prometheus-stack — installs Prometheus,
+#   Grafana, and Alertmanager in one chart.
+#
+#   What each component does:
+#   - Prometheus   → scrapes and stores metrics from all pods/nodes
+#   - Grafana      → visualizes metrics as dashboards
+#   - Alertmanager → routes alerts to Slack/PagerDuty/email
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── Grafana ──────────────────────────────────────────────────────────
+grafana:
+  enabled: true                    # Install Grafana
+
+  # Default admin credentials — change in production
+  adminUser: admin
+  adminPassword: admin123
+
+  service:
+    type: ClusterIP                # Accessible via port-forward locally
+
+  # Pre-load useful dashboards automatically
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  # Import community dashboards by ID from grafana.com
+  dashboards:
+    default:
+      # Kubernetes cluster overview dashboard
+      kubernetes-cluster:
+        gnetId: 7249               # grafana.com/dashboards/7249
+        revision: 1
+        datasource: Prometheus
+
+      # Pod resource usage dashboard
+      kubernetes-pods:
+        gnetId: 6781               # grafana.com/dashboards/6781
+        revision: 1
+        datasource: Prometheus
+
+      # Node exporter dashboard
+      node-exporter:
+        gnetId: 1860               # grafana.com/dashboards/1860
+        revision: 1
+        datasource: Prometheus
+
+  # Persistence — store dashboards across pod restarts
+  persistence:
+    enabled: false                 # Disabled for local kind cluster
+                                   # Enable with a StorageClass in production
+
+# ── Prometheus ───────────────────────────────────────────────────────
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    # How long to keep metrics data
+    retention: 7d                  # 7 days retention — increase in production
+
+    # Scrape ALL ServiceMonitors across ALL namespaces
+    # Without this Prometheus only scrapes its own namespace
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}  # Watch all namespaces
+    serviceMonitorSelector: {}           # Match all ServiceMonitors
+
+    # Scrape ALL PodMonitors across ALL namespaces
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorNamespaceSelector: {}
+    podMonitorSelector: {}
+
+    # Resource limits for Prometheus pod
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+    # Storage for metrics — ephemeral for local testing
+    storageSpec: {}                # Use emptyDir locally
+                                   # Use PVC in production
+
+# ── Alertmanager ─────────────────────────────────────────────────────
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Alert routing configuration
+  config:
+    global:
+      resolve_timeout: 5m          # Mark alert resolved after 5min of no firing
+
+    route:
+      group_by: ["alertname", "namespace"]   # Group related alerts together
+      group_wait: 30s              # Wait 30s before sending first alert in group
+      group_interval: 5m           # Wait 5m before sending alerts for new group members
+      repeat_interval: 12h         # Resend alert every 12h if still firing
+      receiver: "null"             # Default receiver — change to slack/pagerduty
+
+      # Route critical alerts separately
+      routes:
+        - matchers:
+            - severity="critical"
+          receiver: "null"         # Replace with real receiver in production
+          continue: false
+
+    receivers:
+      - name: "null"               # Placeholder — replace with Slack/PagerDuty config
+
+# ── Node Exporter ────────────────────────────────────────────────────
+# Collects hardware and OS metrics from every node
+nodeExporter:
+  enabled: true                    # Deploy on all nodes as DaemonSet
+
+# ── Kube State Metrics ───────────────────────────────────────────────
+# Exposes Kubernetes object state as metrics
+# e.g. deployment replicas, pod status, resource limits
+kubeStateMetrics:
+  enabled: true
+
+# ── Default rules ────────────────────────────────────────────────────
+# Pre-built alerting rules for common failure scenarios
+defaultRules:
+  create: true                     # Install default Prometheus alerting rules
+  rules:
+    alertmanager: true             # Alertmanager health alerts
+    etcd: false                    # Skip etcd alerts (not exposed in kind)
+    kubeScheduler: false           # Skip scheduler alerts (not exposed in kind)
+    node: true                     # Node health alerts
+    kubernetesApps: true           # Pod crash/OOMKill alerts
+    kubernetesResources: true      # Resource quota alerts
+    kubernetesStorage: true        # PVC alerts
