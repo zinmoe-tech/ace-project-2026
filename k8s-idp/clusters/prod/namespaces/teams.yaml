@@ -43,11 +43,11 @@ spec:
   limits:
     - type: Container
       default:
-        cpu: 200m                  # Default CPU limit per container
-        memory: 128Mi              # Default memory limit per container
-      defaultRequest:
-        cpu: 50m                   # Default CPU request per container
-        memory: 64Mi               # Default memory request per container
+        cpu: 200m                  # Injected when developer omits limits
+        memory: 128Mi
+      max:
+        cpu: "2"                   # Developer cannot set limits higher than this
+        memory: 2Gi
 
 ---
 # ─────────────────────────────────────────────────────────────────────
@@ -87,6 +87,6 @@ spec:
       default:
         cpu: 200m
         memory: 128Mi
-      defaultRequest:
-        cpu: 50m
-        memory: 64Mi
+      max:
+        cpu: "2"
+        memory: 2Gi
