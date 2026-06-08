@@ -128,7 +128,7 @@ helm install cilium cilium/cilium \
   --version 1.19.4 \
   --namespace kube-system \
   --set kubeProxyReplacement=true \
-  --set k8sServiceHost=172.19.0.4 \
+  --set k8sServiceHost=172.19.0.3 \
   --set k8sServicePort=6443 \
   --set routingMode=tunnel \
   --set tunnelProtocol=vxlan \

@@ -1,0 +1,34 @@
+# my-app.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  namespace: team-a
+  labels:
+    team: team-a          # ← required by require-team-labels
+    app: my-app           # ← required by require-team-labels
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+        team: team-a
+    spec:
+      securityContext:               # ← needed so the PODS pass PSA restricted
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.25.3   # rootless nginx (listens on 8080); pinned tag for block-latest-tag
+          ports:
+            - containerPort: 8080      # unprivileged nginx listens on 8080, not 80
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
