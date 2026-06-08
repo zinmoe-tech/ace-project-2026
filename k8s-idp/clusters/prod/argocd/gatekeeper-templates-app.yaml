@@ -1,0 +1,51 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: clusters/prod/argocd/gatekeeper-templates-app.yaml
+#
+# PURPOSE:
+#   Syncs the OPA Gatekeeper ConstraintTemplates ONLY (the policy logic).
+#   Each template tells Gatekeeper to generate a new Constraint CRD
+#   (e.g. BlockLatestTag, RequireResourceLimits, RequireTeamLabels).
+#
+#   WHY THIS IS A SEPARATE APP FROM THE CONSTRAINTS:
+#   A Constraint can't be created until its CRD exists, and that CRD is
+#   only generated AFTER its ConstraintTemplate is applied. If templates +
+#   constraints live in one Application, Argo CD validates them together and
+#   aborts ("one or more synchronization tasks are not valid") because the
+#   constraint CRDs don't exist yet. Splitting them lets this app create the
+#   CRDs first; the constraints app (sync-wave "2") then applies cleanly.
+# ═══════════════════════════════════════════════════════════════════════
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gatekeeper-templates
+  namespace: argocd
+  annotations:
+    # App-of-apps ordering: this app syncs BEFORE gatekeeper-constraints
+    # (wave "2"), so Gatekeeper has generated the constraint CRDs first.
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    tier: platform
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/zinmoe-tech/ace-project-2026.git
+    targetRevision: HEAD
+    path: k8s-idp/platform/opa-gatekeeper/templates   # ConstraintTemplates only
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gatekeeper-system                       # templates are cluster-scoped; ns is nominal
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        maxDuration: 2m
