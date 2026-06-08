@@ -4,20 +4,12 @@
 # PURPOSE:
 #   Defines Namespace, ResourceQuota, and LimitRange for all tenant teams.
 #
-#   LimitRange change from original:
-#   - REMOVED "default" block — was auto-injecting limits before Gatekeeper
-#     could check them, making the require-resource-limits policy ineffective.
-#   - REMOVED "defaultRequest" block — same issue, injected before Gatekeeper.
-#   - KEPT "min/max" bounds — acts as a hard safety net at the node level
-#     even if Gatekeeper is somehow bypassed. No container can exceed these.
-#
-#   Gatekeeper now owns the responsibility of enforcing explicit limits.
-#   LimitRange only provides hard min/max boundaries as a second line of defense.
+#   LimitRange sets minimum default resource requests and limits
+#   so pods without explicit values still get sensible safe defaults.
 # ═══════════════════════════════════════════════════════════════════════
 
-
 # ─────────────────────────────────────────────────────────────────────
-# TEAM-A NAMESPACE
+# TEAM-A
 # ─────────────────────────────────────────────────────────────────────
 apiVersion: v1
 kind: Namespace
@@ -50,30 +42,16 @@ metadata:
 spec:
   limits:
     - type: Container
-      # NO "default" block — removing this so LimitRange does not
-      # auto-inject limits before Gatekeeper's validating webhook runs.
-      # Gatekeeper (require-resource-limits policy) is now responsible
-      # for ensuring every container explicitly defines its own limits.
-
-      # NO "defaultRequest" block — same reason as above.
-      # Auto-injected requests would mask missing explicit declarations.
-
-      # min: absolute minimum a container can request.
-      # Prevents containers from requesting zero resources.
-      min:
-        cpu: 10m                   # At least 0.01 CPU core must be requested
-        memory: 16Mi               # At least 16MB must be requested
-
-      # max: absolute maximum a container can use.
-      # Safety net — even if Gatekeeper is bypassed, no single container
-      # can consume more than these values and starve other pods.
-      max:
-        cpu: "2"                   # Hard cap of 2 CPU cores per container
-        memory: 2Gi                # Hard cap of 2GiB memory per container
+      default:
+        cpu: 200m                  # Default CPU limit per container
+        memory: 128Mi              # Default memory limit per container
+      defaultRequest:
+        cpu: 50m                   # Default CPU request per container
+        memory: 64Mi               # Default memory request per container
 
 ---
 # ─────────────────────────────────────────────────────────────────────
-# TEAM-B NAMESPACE
+# TEAM-B
 # ─────────────────────────────────────────────────────────────────────
 apiVersion: v1
 kind: Namespace
@@ -106,15 +84,9 @@ metadata:
 spec:
   limits:
     - type: Container
-      # NO "default" block — same reasoning as team-a.
-      # Gatekeeper enforces explicit limits at admission time.
-
-      # NO "defaultRequest" block — removed for same reason.
-
-      # min/max bounds kept as second line of defense.
-      min:
-        cpu: 10m                   # Minimum CPU request per container
-        memory: 16Mi               # Minimum memory request per container
-      max:
-        cpu: "2"                   # Maximum CPU limit per container
-        memory: 2Gi                # Maximum memory limit per container
+      default:
+        cpu: 200m
+        memory: 128Mi
+      defaultRequest:
+        cpu: 50m
+        memory: 64Mi
