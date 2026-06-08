@@ -1,0 +1,56 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: clusters/prod/argocd/prometheus-stack-app.yaml
+#
+# PURPOSE:
+#   ArgoCD Application that installs kube-prometheus-stack via Helm.
+#   Deploys Prometheus, Grafana, and Alertmanager into the
+#   monitoring namespace.
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-stack
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    tier: platform
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts  # Helm repo URL
+    chart: kube-prometheus-stack                                  # Chart name
+    targetRevision: 61.3.0                                        # Pinned chart version
+
+    helm:
+      valueFiles:
+        - $values/k8s-idp/platform/observability/prometheus-stack/values.yaml
+
+  # Second source — our values file from Git
+  # ArgoCD supports multiple sources since v2.6
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 61.3.0
+      helm:
+        valueFiles:
+          - $values/k8s-idp/platform/observability/prometheus-stack/values.yaml
+
+    - repoURL: https://github.com/zinmoe-tech/ace-project-2026.git
+      targetRevision: HEAD
+      ref: values                  # Reference name used as $values above
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring          # Dedicated namespace for all observability tools
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true       # Required for large CRDs in this chart
