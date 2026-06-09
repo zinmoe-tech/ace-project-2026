@@ -22,7 +22,7 @@ apiVersion: argoproj.io/v1alpha1  # ArgoCD API group
 kind: Application                  # ArgoCD Application custom resource
 metadata:
   name: grc-app        # Descriptive name — visible in ArgoCD UI
-  namespace: grc-team                # Must always be the argocd namespace
+  namespace: argocd               # Must always be the argocd namespace
 
   finalizers:
     # Blocks deletion of this Application if managed resources still exist.
