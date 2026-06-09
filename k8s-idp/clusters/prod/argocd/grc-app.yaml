@@ -48,7 +48,7 @@ spec:
     # Namespace resources are cluster-scoped so technically the
     # destination namespace doesn't matter for Namespace creation,
     # but ArgoCD requires this field. We use argocd as a convention.
-    namespace: argocd
+    namespace: grc-team
 
   syncPolicy:
     automated:
