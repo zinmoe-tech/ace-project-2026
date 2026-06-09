@@ -40,7 +40,7 @@ spec:
     # Points to the namespaces folder which contains teams.yaml.
     # ArgoCD syncs everything in this folder — Namespaces,
     # ResourceQuotas, and LimitRanges all get applied together.
-    path: /k8s-idp/apps/grc
+    path: k8s-idp/apps/grc
 
   destination:
     server: https://kubernetes.default.svc  # Deploy into the local cluster
