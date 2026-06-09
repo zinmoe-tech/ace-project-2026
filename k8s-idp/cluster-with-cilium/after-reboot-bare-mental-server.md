@@ -72,6 +72,7 @@ kubectl -n kube-system rollout restart ds/cilium deploy/cilium-operator
 # 3. wait for it to come up
 kubectl -n kube-system rollout status ds/cilium --timeout=240s
 ```
+### To work cilium properlly, demonset (ds) and deployment in ns(kube-system) need to run well.
 
 Expected after this: all `cilium-*` pods `1/1 Running`, `cilium-operator` `1/1 Running`,
 and `kubectl get nodes` shows all 4 nodes `Ready`.

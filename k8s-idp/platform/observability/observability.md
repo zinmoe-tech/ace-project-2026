@@ -24,8 +24,14 @@ FILE: clusters/prod/argocd/prometheus-stack-app.yaml
 
 # Step 5 - Sync
 
-argocd app sync root-app --grpc-web
+$ argocd app sync root-app --grpc-web
 
+$ kubectl get pods -n monitoring
+
+$ kubectl port-forward svc/prometheus-stack-grafana \
+  -n monitoring 3000:80
+
+$ kubectl port-forward svc/prometheus-stack-kube-prom-prometheus -n monitoring 9090:9090	
 
 
 
