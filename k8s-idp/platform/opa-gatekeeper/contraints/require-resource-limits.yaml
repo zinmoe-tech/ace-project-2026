@@ -28,3 +28,4 @@ spec:
     namespaces:
       - team-a
       - team-b
+      - grc-team

@@ -1,0 +1,53 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  components:
+    base:
+      enabled: true
+    pilot:
+      enabled: true
+    ingressGateways:
+    - name: retail-banking-istio-ingressgateway
+      enabled: true
+      namespace: retail-banking-ingress    # separated from microservice namespace
+      label:
+        app: retail-banking-istio-ingressgateway
+      k8s:
+        service:
+          type: ClusterIP                  # No external IP — Kong reaches this internally
+    - name: payments-istio-ingressgateway
+      enabled: true
+      namespace: payments-ingress          # separated from microservice namespace
+      label:
+        app: payments-istio-ingressgateway
+      k8s:
+        service:
+          type: ClusterIP                  # No external IP — Kong reaches this internally
+    - name: grc-istio-ingressgateway
+      enabled: true
+      namespace: grc-ingress               # separated from microservice namespace
+      label:
+        app: grc-istio-ingressgateway
+      k8s:
+        service:
+          type: ClusterIP                  # No external IP — Kong reaches this internally
+        hpaSpec:
+          maxReplicas: 2
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+  hub: docker.io/istio
+  profile: minimal
+  tag: 1.29.2
+  values:
+    defaultRevision: ""
+    gateways:
+      istio-egressgateway: {}
+      istio-ingressgateway: {}
+    global:
+      configValidation: true
+      istioNamespace: istio-system
