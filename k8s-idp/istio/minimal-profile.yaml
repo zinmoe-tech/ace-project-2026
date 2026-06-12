@@ -14,7 +14,7 @@ spec:
         app: retail-banking-istio-ingressgateway
       k8s:
         service:
-          type: ClusterIP                  # No external IP — Kong reaches this internally
+          type: ClusterIP                  # No external IP — reached internally by the global gw
     - name: payments-istio-ingressgateway
       enabled: true
       namespace: payments-ingress          # separated from microservice namespace
@@ -22,7 +22,7 @@ spec:
         app: payments-istio-ingressgateway
       k8s:
         service:
-          type: ClusterIP                  # No external IP — Kong reaches this internally
+          type: ClusterIP                  # No external IP — reached internally by the global gw
     - name: grc-istio-ingressgateway
       enabled: true
       namespace: grc-ingress               # separated from microservice namespace
@@ -30,7 +30,7 @@ spec:
         app: grc-istio-ingressgateway
       k8s:
         service:
-          type: ClusterIP                  # No external IP — Kong reaches this internally
+          type: ClusterIP                  # No external IP — reached internally by the global gw
         hpaSpec:
           maxReplicas: 2
         resources:
@@ -40,6 +40,18 @@ spec:
           limits:
             cpu: 200m
             memory: 256Mi
+    # GLOBAL edge gateway — the single external entry point for the platform.
+    # Unlike the team gateways above (ClusterIP), this one is a LoadBalancer so it
+    # gets a real external IP (via MetalLB). TLS termination is configured on the
+    # Gateway/VirtualService in global-istio-gw/.
+    - name: global-istio-ingressgateway
+      enabled: true
+      namespace: global-istio-ingress
+      label:
+        app: global-istio-ingressgateway
+      k8s:
+        service:
+          type: LoadBalancer
   hub: docker.io/istio
   profile: minimal
   tag: 1.29.2

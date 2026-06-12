@@ -67,6 +67,7 @@ echo "control-plane is now $CP_IP"
 # 2. update Cilium's k8sServiceHost and restart it
 helm upgrade cilium cilium/cilium --version 1.19.4 -n kube-system \
   --reuse-values --set k8sServiceHost="$CP_IP"
+  
 kubectl -n kube-system rollout restart ds/cilium deploy/cilium-operator
 
 # 3. wait for it to come up

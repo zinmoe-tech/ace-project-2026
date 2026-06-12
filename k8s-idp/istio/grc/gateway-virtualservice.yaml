@@ -13,6 +13,9 @@ spec:
       protocol: HTTP
     hosts:
     - finance.hellocloud.io
+
+### Verification cmd : kubectl get gateways.networking.istio.io -n grc-ingress
+
 ---
 apiVersion: networking.istio.io/v1
 kind: VirtualService
@@ -33,3 +36,20 @@ spec:
         host: fraud-svc.grc-team.svc.cluster.local
         port:
           number: 6061
+
+
+# # your VS lives here:
+# kubectl get virtualservice -n grc-team
+
+# # short alias `vs`:
+# kubectl get vs -n grc-team
+
+# # ALL virtualservices, every namespace (most useful):
+# kubectl get vs -A
+
+# # explicit (unambiguous) form:
+# kubectl get virtualservices.networking.istio.io -A
+
+# # full details of one:
+# kubectl get vs grc-routes -n grc-team -o yaml
+# kubectl describe vs grc-routes -n grc-team

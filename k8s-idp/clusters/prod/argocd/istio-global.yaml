@@ -1,0 +1,57 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: clusters/prod/argocd/istio-global.yaml
+#
+# PURPOSE:
+#   Deploys the GLOBAL Istio edge gateway — the single external entry
+#   point for the platform and the place where TLS is terminated.
+#
+#   Syncs the kustomize bundle in k8s-idp/global-istio-gw/:
+#     - Namespace        global-istio-ingress
+#     - Gateway          global-istio-gateway   (finance.hellocloud.io)
+#     - VirtualService   global-routes          (public paths -> team gateways)
+#
+#   NOTE: the gateway POD itself (global-istio-ingressgateway) is created by
+#   istioctl from istio/minimal-profile.yaml, NOT by this Application.
+#   This app only manages the routing layer (Gateway + VirtualService).
+#
+#   Auto-discovered by root-app (App-of-Apps) — just commit and push.
+# ═══════════════════════════════════════════════════════════════════════
+
+apiVersion: argoproj.io/v1alpha1  # ArgoCD API group
+kind: Application                  # ArgoCD Application custom resource
+metadata:
+  name: global-istio              # Descriptive name — visible in ArgoCD UI
+  namespace: argocd               # Must always be the argocd namespace
+
+  finalizers:
+    # Blocks deletion of this Application while its managed resources
+    # still exist — avoids orphaning the gateway/virtualservice.
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default                 # ArgoCD Project — upgrade to "platform" in Phase 2
+
+  source:
+    repoURL: https://github.com/zinmoe-tech/ace-project-2026.git  # Your Git repo
+    targetRevision: HEAD           # Track latest commit on default branch
+
+    # The kustomize bundle for the global edge gateway. ArgoCD detects the
+    # kustomization.yaml here and renders it automatically.
+    path: k8s-idp/global-istio-gw
+
+  destination:
+    server: https://kubernetes.default.svc  # Deploy into the local cluster
+    namespace: global-istio-ingress         # Namespace the Gateway/VS live in
+
+  syncPolicy:
+    automated:
+      # prune: true → deleting a manifest from global-istio-gw/ removes it
+      # from the cluster too, keeping Git as the source of truth.
+      prune: true
+
+      # selfHeal: true → manual kubectl/UI edits get reverted back to Git.
+      selfHeal: true
+
+    syncOptions:
+      # Create the global-istio-ingress namespace on first sync if missing.
+      - CreateNamespace=true
