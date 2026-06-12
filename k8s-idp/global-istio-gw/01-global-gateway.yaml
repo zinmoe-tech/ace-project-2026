@@ -23,25 +23,23 @@ spec:
     - finance.hellocloud.io
 
   # ----------------------------------------------------------------------------
-  # TLS termination PoC -- uncomment to enable HTTPS on :443.
+  # TLS termination -- SIMPLE mode (one-way TLS: server cert only).
   #
-  # SIMPLE  : standard one-way TLS (server cert only). Start here.
-  # MUTUAL  : also require + validate a client cert (add `caCertificates`).
-  #
-  # The `credentialName` is a kubernetes.io/tls Secret that MUST live in the
+  # The gateway decrypts here, so it can still route on the HTTP path.
+  # `credentialName` is a kubernetes.io/tls Secret that MUST live in this
   # gateway pod's namespace (global-istio-ingress):
   #   kubectl -n global-istio-ingress create secret tls finance-tls \
   #     --cert=finance.crt --key=finance.key
   # ----------------------------------------------------------------------------
-  # - port:
-  #     number: 443
-  #     name: https
-  #     protocol: HTTPS
-  #   hosts:
-  #   - finance.hellocloud.io
-  #   tls:
-  #     mode: SIMPLE
-  #     credentialName: finance-tls
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - finance.hellocloud.io
+    tls:
+      mode: SIMPLE
+      credentialName: finance-tls
 
   # Optional: redirect plain HTTP -> HTTPS once TLS is enabled.
   # - port:
