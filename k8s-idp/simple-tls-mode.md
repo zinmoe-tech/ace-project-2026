@@ -56,6 +56,50 @@ ls -l finance.crt finance.key
 
 ---
 
+## Step 1 - Insted of self-signed, can use root and leaf ca
+
+# 1 - Create Root CA:
+# Root CA private key
+openssl genrsa -out root-ca.key 4096
+
+# Root CA certificate (self-signed, 10 years)
+openssl req -x509 -new -nodes -key root-ca.key -sha256 -days 3650 \
+  -out root-ca.crt \
+  -subj "/CN=HelloCloud Root CA/O=HelloCloudBank"
+
+# 2 - Create leaf certificate signed by Root CA:
+
+# Leaf private key
+openssl genrsa -out finance.key 2048
+
+# Certificate Signing Request (CSR)
+openssl req -new -key finance.key \
+  -out finance.csr \
+  -subj "/CN=finance.hellocloud.io/O=HelloCloudBank"
+
+# Sign with Root CA
+openssl x509 -req -in finance.csr \
+  -CA root-ca.crt -CAkey root-ca.key -CAcreateserial \
+  -out finance.crt -days 365 -sha256 \
+  -extfile <(printf "subjectAltName=DNS:finance.hellocloud.io")
+
+# Bundle leaf + root into a chain for Istio:
+
+cat finance.crt root-ca.crt > finance-chain.crt
+
+kubectl -n grc-ingress create secret tls grc-tls \
+  --cert=finance-chain.crt \
+  --key=finance.key
+
+Istio requires the full chain in tls.crt — leaf first, then root.
+
+# Verify with curl using Root CA (no -k needed):
+
+curl -v --cacert root-ca.crt \
+  --resolve finance.hellocloud.io:443:172.18.255.200 \
+  https://finance.hellocloud.io/grc/audits
+
+
 ## Step 2 — Load the cert+key as a Kubernetes Secret
 
 Istio's gateway reads its certificate from a **Secret**, not from loose files.
@@ -63,8 +107,8 @@ The Secret MUST live in the gateway pod's namespace (`global-istio-ingress`),
 and its name MUST match `credentialName: finance-tls` in the Gateway.
 
 ```bash
-kubectl -n global-istio-ingress create secret tls finance-tls \
-  --cert=finance.crt --key=finance.key
+kubectl -n grc-ingress create secret tls grc-tls \
+  --cert=grc.crt --key=grc.key
 ```
 
 Verify (type should be `kubernetes.io/tls`):

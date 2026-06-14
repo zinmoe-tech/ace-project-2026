@@ -13,6 +13,15 @@ spec:
       protocol: HTTP
     hosts:
     - finance.hellocloud.io
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - finance.hellocloud.io
+    tls:
+      mode: SIMPLE
+      credentialName: grc-tls
 
 ### Verification cmd : kubectl get gateways.networking.istio.io -n grc-ingress
 
