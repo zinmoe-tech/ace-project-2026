@@ -87,7 +87,7 @@ openssl x509 -req -in finance.csr \
 
 cat finance.crt root-ca.crt > finance-chain.crt
 
-kubectl -n grc-ingress create secret tls grc-tls \
+kubectl -n global-istio-ingress create secret tls grc-tls \
   --cert=finance-chain.crt \
   --key=finance.key
 
