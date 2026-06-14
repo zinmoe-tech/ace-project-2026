@@ -1,0 +1,11 @@
+# Gives Cilium a pool of IPs to assign to LoadBalancer services.
+# Range is chosen from the high end of the kind Docker subnet (172.18.0.0/16)
+# so it does not overlap with kind node IPs (.2-.5).
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: kind-pool
+spec:
+  blocks:
+    - start: "172.18.255.200"
+      stop: "172.18.255.250"

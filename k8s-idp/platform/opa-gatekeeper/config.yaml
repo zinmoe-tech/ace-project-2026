@@ -1,0 +1,17 @@
+apiVersion: config.gatekeeper.sh/v1alpha1
+kind: Config
+metadata:
+  name: skip-ns
+  namespace: gatekeeper-system
+spec:
+  match:
+    - excludedNamespaces:
+        - kube-system
+        - kube-public
+        - kube-node-lease
+        - gatekeeper-system
+        - argocd
+        - istio-system
+        - cilium-secrets
+      processes:
+        - "*"

@@ -59,7 +59,7 @@ kubectl -n argocd create secret generic repo-ace-project-2026 \
   --from-literal=type=git \
   --from-literal=url=https://github.com/zinmoe-tech/ace-project-2026.git \
   --from-literal=username=zinmoe8988@gmail.com \
-  --from-literal=password=  # never commit a real token
+  --from-literal=password=<YOUR_GITHUB_PAT>
 
 # Login via CLI
 argocd login localhost:8080 \
@@ -125,3 +125,25 @@ Verify it's gone
 kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=repository
 # repo-ace-project-2026 should no longer be listed
 Want me to run option A for you?
+
+
+#### Install ArgoCD in client
+
+curl -sL -o /tmp/argocd \
+  "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64"
+
+chmod +x /tmp/argocd
+sudo mv /tmp/argocd /usr/local/bin/argocd
+
+argocd version --client
+
+### For CM error
+
+kubectl get pods -n argocd 
+
+kubectl get configmap argocd-cm -n argocd
+
+kubectl config view --minify --output 'jsonpath={..namespace}'
+
+kubectl config set-context --current --namespace=argocd
+argocd app sync payments-istio --core

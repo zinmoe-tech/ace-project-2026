@@ -193,3 +193,27 @@ argocd app sync gatekeeper-constraints --core
   each reboot is the pragmatic path.
 - If `argocd` CLI says `configmap "argocd-cm" not found`, it's core-mode looking in the
   wrong namespace — run `kubectl config set-context --current --namespace=argocd` (Step 0).
+
+
+### When cilum is not running due to webhook
+
+# Break the deadlock — patch webhook failurePolicy to Ignore
+kubectl patch validatingwebhookconfiguration gatekeeper-validating-webhook-configuration \
+  --type=json \
+  -p='[{"op":"replace","path":"/webhooks/1/failurePolicy","value":"Ignore"}]'
+
+# Now upgrade Cilium
+CP_IP=$(docker inspect idp-cluster-control-plane \
+  --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+
+helm upgrade cilium cilium/cilium --version 1.19.4 -n kube-system \
+  --reuse-values --set k8sServiceHost="$CP_IP"
+
+# Wait for Cilium to be ready
+kubectl rollout status daemonset/cilium -n kube-system --timeout=120s
+
+# Now make it permanent via Helm (Gatekeeper will re-manage the webhook after this)
+helm upgrade gatekeeper gatekeeper/gatekeeper \
+  -n gatekeeper-system \
+  --reuse-values \
+  --set validatingWebhookCheckIgnoreFailurePolicy=Ignore

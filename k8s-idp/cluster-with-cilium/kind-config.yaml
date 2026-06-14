@@ -76,18 +76,18 @@ nodes:
       # Custom node label — used by platform tools (Prometheus, ArgoCD)
       # to schedule onto a dedicated node via nodeSelector or nodeAffinity.
       # Keeps platform observability tools off tenant nodes.
-      node-role: platform
+      #node-role: platform
 
   # ── Worker Node 2 — Team-a workloads ──────────────────────────────
   - role: worker
     labels:
       # Custom node label — team-a Deployments can use nodeAffinity
       # to prefer this node. Simulates dedicated node pools per tenant.
-      node-role: team-a
+      #node-role: team-a
 
   # ── Worker Node 3 — Team-b workloads ──────────────────────────────
   - role: worker
     labels:
       # Custom node label — team-b Deployments can use nodeAffinity
       # to prefer this node. Each team gets their own worker in this setup.
-      node-role: team-b
+      #node-role: team-b

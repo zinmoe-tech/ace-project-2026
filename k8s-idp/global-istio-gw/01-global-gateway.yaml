@@ -15,12 +15,12 @@ spec:
   selector:
     app: global-istio-ingressgateway
   servers:
-  - port:
-      number: 80
-      name: http
-      protocol: HTTP
-    hosts:
-    - finance.hellocloud.io
+  # - port:
+  #     number: 80
+  #     name: http
+  #     protocol: HTTP
+  #   hosts:
+  #   - finance.hellocloud.io
 
   # ----------------------------------------------------------------------------
   # TLS termination -- SIMPLE mode (one-way TLS: server cert only).

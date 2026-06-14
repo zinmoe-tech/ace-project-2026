@@ -29,30 +29,21 @@ Install Cilium CLI on Linux
 # Detect your CPU architecture automatically
 
 ARCH=$(uname -m)
-
 case $ARCH in
   x86_64)  ARCH="amd64" ;;
   aarch64) ARCH="arm64" ;;
 esac
 
-# Set version
 CILIUM_CLI_VERSION="v0.16.10"
 
-# Download the binary + checksum
-curl -sL "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${ARCH}.tar.gz" \
+curl -L --progress-bar \
+  "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${ARCH}.tar.gz" \
   -o cilium.tar.gz
 
-# Verify checksum (security best practice)
-curl -sL "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${ARCH}.tar.gz.sha256sum" \
-  -o cilium.tar.gz.sha256sum
-sha256sum --check cilium.tar.gz.sha256sum
-
-# Extract and move to PATH
-tar xz -f cilium.tar.gz
+tar xzf cilium.tar.gz
 sudo mv cilium /usr/local/bin/cilium
-
-# Clean up downloaded files
 rm cilium.tar.gz cilium.tar.gz.sha256sum
+cilium version --client
 
 # Verify
 cilium version --client
@@ -104,6 +95,8 @@ Kind nodes are Docker containers. Without this step, each node would pull the Ci
 
 docker pull quay.io/cilium/cilium:v1.19.4
 
+docker images
+
 # Push it into all kind cluster nodes
 
 kind load docker-image quay.io/cilium/cilium:v1.19.4 \
@@ -128,7 +121,7 @@ helm install cilium cilium/cilium \
   --version 1.19.4 \
   --namespace kube-system \
   --set kubeProxyReplacement=true \
-  --set k8sServiceHost=172.19.0.3 \
+  --set k8sServiceHost=172.18.0.4 \
   --set k8sServicePort=6443 \
   --set routingMode=tunnel \
   --set tunnelProtocol=vxlan \
@@ -155,6 +148,8 @@ cilium-xxxxx   1/1   Running   0   60s
 cilium-xxxxx   1/1   Running   0   60s
 cilium-xxxxx   1/1   Running   0   60s
 cilium-operator-xxxxx   1/1   Running   0   60s
+
+kubectl get  ds -n kube-system
 
 # Step 8 — Check nodes are now Ready
 kubectl get nodes
@@ -186,3 +181,23 @@ DaemonSet              cilium             Desired: 4, Ready: 4/4
 cilium hubble ui
 
 This automatically opens your browser with a live network flow map. Right now it'll be mostly empty — but once we deploy workloads in Phase 2 you'll see traffic flowing between namespaces in real time. Great interview demo.
+
+
+### For external loadbalancer set
+
+# Enable L2 announcements in Cilium
+CP_IP=$(docker inspect idp-cluster-control-plane \
+  --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+
+helm upgrade cilium cilium/cilium --version 1.19.4 -n kube-system \
+  --reuse-values \
+  --set k8sServiceHost="$CP_IP" \
+  --set l2announcements.enabled=true \
+  --set externalIPs.enabled=true
+
+# Apply the pool and announcement policy
+kubectl apply -f k8s-idp/cluster-with-cilium/cilium-lb-ippool.yaml
+kubectl apply -f k8s-idp/cluster-with-cilium/cilium-l2-announcement.yaml
+
+# Verify the service gets an IP
+kubectl get svc -n global-istio-ingress

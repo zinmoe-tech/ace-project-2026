@@ -5,6 +5,7 @@ helm repo update
 helm install gatekeeper gatekeeper/gatekeeper \
   --namespace gatekeeper-system \
   --create-namespace \
+  --set validatingWebhookCheckIgnoreFailurePolicy=Ignore \
   --wait
 
 kubectl get pods -n gatekeeper-system
