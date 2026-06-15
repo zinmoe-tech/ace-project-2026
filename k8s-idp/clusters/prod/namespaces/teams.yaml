@@ -1,92 +1,92 @@
-# ═══════════════════════════════════════════════════════════════════════
-# FILE: clusters/prod/namespaces/teams.yaml
-#
-# PURPOSE:
-#   Defines Namespace, ResourceQuota, and LimitRange for all tenant teams.
-#
-#   LimitRange sets minimum default resource requests and limits
-#   so pods without explicit values still get sensible safe defaults.
-# ═══════════════════════════════════════════════════════════════════════
+# # ═══════════════════════════════════════════════════════════════════════
+# # FILE: clusters/prod/namespaces/teams.yaml
+# #
+# # PURPOSE:
+# #   Defines Namespace, ResourceQuota, and LimitRange for all tenant teams.
+# #
+# #   LimitRange sets minimum default resource requests and limits
+# #   so pods without explicit values still get sensible safe defaults.
+# # ═══════════════════════════════════════════════════════════════════════
 
-# ─────────────────────────────────────────────────────────────────────
-# TEAM-A
-# ─────────────────────────────────────────────────────────────────────
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: team-a
-  labels:
-    team: team-a
-    pod-security.kubernetes.io/enforce: restricted
+# # ─────────────────────────────────────────────────────────────────────
+# # TEAM-A
+# # ─────────────────────────────────────────────────────────────────────
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: team-a
+#   labels:
+#     team: team-a
+#     pod-security.kubernetes.io/enforce: restricted
 
----
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: team-a-quota
-  namespace: team-a
-spec:
-  hard:
-    requests.cpu: "4"
-    requests.memory: 8Gi
-    limits.cpu: "8"
-    limits.memory: 16Gi
-    pods: "20"
+# ---
+# apiVersion: v1
+# kind: ResourceQuota
+# metadata:
+#   name: team-a-quota
+#   namespace: team-a
+# spec:
+#   hard:
+#     requests.cpu: "4"
+#     requests.memory: 8Gi
+#     limits.cpu: "8"
+#     limits.memory: 16Gi
+#     pods: "20"
 
----
-apiVersion: v1
-kind: LimitRange
-metadata:
-  name: team-a-limitrange
-  namespace: team-a
-spec:
-  limits:
-    - type: Container
-      default:
-        cpu: 200m                  # Injected when developer omits limits
-        memory: 128Mi
-      max:
-        cpu: "2"                   # Developer cannot set limits higher than this
-        memory: 2Gi
+# ---
+# apiVersion: v1
+# kind: LimitRange
+# metadata:
+#   name: team-a-limitrange
+#   namespace: team-a
+# spec:
+#   limits:
+#     - type: Container
+#       default:
+#         cpu: 200m                  # Injected when developer omits limits
+#         memory: 128Mi
+#       max:
+#         cpu: "2"                   # Developer cannot set limits higher than this
+#         memory: 2Gi
 
----
-# ─────────────────────────────────────────────────────────────────────
-# TEAM-B
-# ─────────────────────────────────────────────────────────────────────
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: team-b
-  labels:
-    team: team-b
-    pod-security.kubernetes.io/enforce: restricted
+# ---
+# # ─────────────────────────────────────────────────────────────────────
+# # TEAM-B
+# # ─────────────────────────────────────────────────────────────────────
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: team-b
+#   labels:
+#     team: team-b
+#     pod-security.kubernetes.io/enforce: restricted
 
----
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: team-b-quota
-  namespace: team-b
-spec:
-  hard:
-    requests.cpu: "4"
-    requests.memory: 8Gi
-    limits.cpu: "8"
-    limits.memory: 16Gi
-    pods: "20"
+# ---
+# apiVersion: v1
+# kind: ResourceQuota
+# metadata:
+#   name: team-b-quota
+#   namespace: team-b
+# spec:
+#   hard:
+#     requests.cpu: "4"
+#     requests.memory: 8Gi
+#     limits.cpu: "8"
+#     limits.memory: 16Gi
+#     pods: "20"
 
----
-apiVersion: v1
-kind: LimitRange
-metadata:
-  name: team-b-limitrange
-  namespace: team-b
-spec:
-  limits:
-    - type: Container
-      default:
-        cpu: 200m
-        memory: 128Mi
-      max:
-        cpu: "2"
-        memory: 2Gi
+# ---
+# apiVersion: v1
+# kind: LimitRange
+# metadata:
+#   name: team-b-limitrange
+#   namespace: team-b
+# spec:
+#   limits:
+#     - type: Container
+#       default:
+#         cpu: 200m
+#         memory: 128Mi
+#       max:
+#         cpu: "2"
+#         memory: 2Gi

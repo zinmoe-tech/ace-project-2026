@@ -1,28 +1,28 @@
-# apiVersion: networking.istio.io/v1alpha3
-# kind: EnvoyFilter
-# metadata:
-#   name: grc-preserve-x-forwarded-proto
-#   namespace: grc-ingress
-# spec:
-#   workloadSelector:
-#     labels:
-#       app: grc-istio-ingressgateway
-#   configPatches:
-#   - applyTo: HTTP_FILTER
-#     match:
-#       context: GATEWAY
-#       listener:
-#         portNumber: 8080
-#         filterChain:
-#           filter:
-#             name: envoy.filters.network.http_connection_manager
-#     patch:
-#       operation: INSERT_BEFORE
-#       value:
-#         name: envoy.filters.http.lua
-#         typed_config:
-#           "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-#           inline_code: |
-#             function envoy_on_request(request_handle)
-#               request_handle:headers():replace("x-forwarded-proto", "https")
-#             end
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: grc-preserve-x-forwarded-proto
+  namespace: grc-ingress
+spec:
+  workloadSelector:
+    labels:
+      app: grc-istio-ingressgateway
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        portNumber: 8080
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+          inline_code: |
+            function envoy_on_request(request_handle)
+              request_handle:headers():replace("x-forwarded-proto", "https")
+            end

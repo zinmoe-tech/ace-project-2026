@@ -1,148 +1,148 @@
-# ═══════════════════════════════════════════════════════════════════════
-# FILE: clusters/prod/namespaces/team-b-rbac.yaml
-#
-# PURPOSE:
-#   Identical RBAC structure to team-a-rbac.yaml but scoped to team-b.
-#   Each team gets their own Role and RoleBinding resources so that:
-#
-#   - Permissions are independently auditable per team
-#   - A team's Role can be customized without affecting other teams
-#   - RoleBindings can be updated to add/remove team members individually
-#
-#   Managed by: platform-namespaces ArgoCD Application
-# ═══════════════════════════════════════════════════════════════════════
+# # ═══════════════════════════════════════════════════════════════════════
+# # FILE: clusters/prod/namespaces/team-b-rbac.yaml
+# #
+# # PURPOSE:
+# #   Identical RBAC structure to team-a-rbac.yaml but scoped to team-b.
+# #   Each team gets their own Role and RoleBinding resources so that:
+# #
+# #   - Permissions are independently auditable per team
+# #   - A team's Role can be customized without affecting other teams
+# #   - RoleBindings can be updated to add/remove team members individually
+# #
+# #   Managed by: platform-namespaces ArgoCD Application
+# # ═══════════════════════════════════════════════════════════════════════
 
-# ── Role 1: developer — can manage workloads in team-b ──────────────
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: developer
-  namespace: team-b                # Strictly confined to team-b namespace
-  labels:
-    team: team-b
-    managed-by: argocd
+# # ── Role 1: developer — can manage workloads in team-b ──────────────
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: Role
+# metadata:
+#   name: developer
+#   namespace: team-b                # Strictly confined to team-b namespace
+#   labels:
+#     team: team-b
+#     managed-by: argocd
 
-rules:
-  - apiGroups: ["", "apps"]
-    resources:
-      - pods
-      - pods/log
-      - pods/exec
-      - pods/portforward
-      - deployments
-      - replicasets
-      - statefulsets
-      - services
-      - configmaps
-      - endpoints
-      - events
-      - persistentvolumeclaims
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# rules:
+#   - apiGroups: ["", "apps"]
+#     resources:
+#       - pods
+#       - pods/log
+#       - pods/exec
+#       - pods/portforward
+#       - deployments
+#       - replicasets
+#       - statefulsets
+#       - services
+#       - configmaps
+#       - endpoints
+#       - events
+#       - persistentvolumeclaims
+#     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
-  - apiGroups: ["autoscaling"]
-    resources:
-      - horizontalpodautoscalers
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+#   - apiGroups: ["autoscaling"]
+#     resources:
+#       - horizontalpodautoscalers
+#     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
-  - apiGroups: ["networking.k8s.io"]
-    resources:
-      - ingresses
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+#   - apiGroups: ["networking.k8s.io"]
+#     resources:
+#       - ingresses
+#     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
----
-# ── RoleBinding 1: bind developer role to team-b developers ─────────
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: team-b-developer-binding
-  namespace: team-b
-  labels:
-    team: team-b
-    managed-by: argocd
+# ---
+# # ── RoleBinding 1: bind developer role to team-b developers ─────────
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: RoleBinding
+# metadata:
+#   name: team-b-developer-binding
+#   namespace: team-b
+#   labels:
+#     team: team-b
+#     managed-by: argocd
 
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: developer
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: Role
+#   name: developer
 
-subjects:
-  - kind: Group
-    name: team-b-developers
-    apiGroup: rbac.authorization.k8s.io
+# subjects:
+#   - kind: Group
+#     name: team-b-developers
+#     apiGroup: rbac.authorization.k8s.io
 
-  - kind: ServiceAccount
-    name: team-b-dev-sa
-    namespace: team-b
+#   - kind: ServiceAccount
+#     name: team-b-dev-sa
+#     namespace: team-b
 
----
-# ── Role 2: viewer — read-only access to team-b resources ───────────
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: viewer
-  namespace: team-b
-  labels:
-    team: team-b
-    managed-by: argocd
+# ---
+# # ── Role 2: viewer — read-only access to team-b resources ───────────
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: Role
+# metadata:
+#   name: viewer
+#   namespace: team-b
+#   labels:
+#     team: team-b
+#     managed-by: argocd
 
-rules:
-  - apiGroups: ["", "apps", "autoscaling", "networking.k8s.io", "batch"]
-    resources:
-      - pods
-      - pods/log
-      - deployments
-      - replicasets
-      - statefulsets
-      - services
-      - configmaps
-      - endpoints
-      - events
-      - horizontalpodautoscalers
-      - ingresses
-      - persistentvolumeclaims
-      - jobs
-      - cronjobs
-    verbs: ["get", "list", "watch"]
+# rules:
+#   - apiGroups: ["", "apps", "autoscaling", "networking.k8s.io", "batch"]
+#     resources:
+#       - pods
+#       - pods/log
+#       - deployments
+#       - replicasets
+#       - statefulsets
+#       - services
+#       - configmaps
+#       - endpoints
+#       - events
+#       - horizontalpodautoscalers
+#       - ingresses
+#       - persistentvolumeclaims
+#       - jobs
+#       - cronjobs
+#     verbs: ["get", "list", "watch"]
 
----
-# ── RoleBinding 2: bind viewer role to team-b viewers ───────────────
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: team-b-viewer-binding
-  namespace: team-b
-  labels:
-    team: team-b
-    managed-by: argocd
+# ---
+# # ── RoleBinding 2: bind viewer role to team-b viewers ───────────────
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: RoleBinding
+# metadata:
+#   name: team-b-viewer-binding
+#   namespace: team-b
+#   labels:
+#     team: team-b
+#     managed-by: argocd
 
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: viewer
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: Role
+#   name: viewer
 
-subjects:
-  - kind: Group
-    name: team-b-viewers
-    apiGroup: rbac.authorization.k8s.io
+# subjects:
+#   - kind: Group
+#     name: team-b-viewers
+#     apiGroup: rbac.authorization.k8s.io
 
-  - kind: ServiceAccount
-    name: team-b-viewer-sa
-    namespace: team-b
+#   - kind: ServiceAccount
+#     name: team-b-viewer-sa
+#     namespace: team-b
 
----
-# ── ServiceAccounts for local testing ───────────────────────────────
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: team-b-dev-sa
-  namespace: team-b
-  labels:
-    purpose: local-testing
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: team-b-viewer-sa
-  namespace: team-b
-  labels:
-    purpose: local-testing
+# ---
+# # ── ServiceAccounts for local testing ───────────────────────────────
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: team-b-dev-sa
+#   namespace: team-b
+#   labels:
+#     purpose: local-testing
+# ---
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: team-b-viewer-sa
+#   namespace: team-b
+#   labels:
+#     purpose: local-testing
