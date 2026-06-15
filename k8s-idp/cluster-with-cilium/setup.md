@@ -127,7 +127,8 @@ helm install cilium cilium/cilium \
   --set tunnelProtocol=vxlan \
   --set hubble.relay.enabled=true \
   --set hubble.ui.enabled=true \
-  --set image.pullPolicy=IfNotPresent
+  --set image.pullPolicy=IfNotPresent \
+  --set socketLB.hostNamespaceOnly=true
 
 FlagWhykubeProxyReplacement=true  >>  Cilium handles all service routing via eBPF — no iptables
 k8sServiceHost    >>    API server IP — needed since kube-proxy is disabled
@@ -136,6 +137,13 @@ routingMode=tunnel    >>    VXLAN overlay — works inside Docker (kind)
 hubble.relay.enabled=true    >>    Enables Hubble backend for network flows
 hubble.ui.enabled=true    >>    Enables Hubble browser UI
 image.pullPolicy=IfNotPresent    >>    Use the pre-loaded image — don't re-pull
+socketLB.hostNamespaceOnly=true >>  CRITICAL for Istio mTLS: limits Cilium socket BPF hooks
+                                      to the host namespace only. Without this, Cilium DNAT's
+                                      service IPs to pod IPs at the socket level (even before
+                                      iptables), so Istio's sidecar reads pod:port as
+                                      SO_ORIGINAL_DST and falls back to PassthroughCluster —
+                                      bypassing all DestinationRules and mTLS.
+                                      ConfigMap equivalent: bpf-lb-sock-hostns-only: "true"
 
 # Step 7 — Watch Cilium pods start
 
@@ -201,3 +209,19 @@ kubectl apply -f k8s-idp/cluster-with-cilium/cilium-l2-announcement.yaml
 
 # Verify the service gets an IP
 kubectl get svc -n global-istio-ingress
+
+### IP address information
+
+# 1. Shows cilium_host IP on each node
+docker exec idp-cluster-control-plane ip addr show | grep "10\.0\.0\."
+# → inet 10.0.0.27/32 scope global cilium_host
+
+# 2. Shows Cilium's internal health endpoint on that subnet
+kubectl exec -n kube-system ds/cilium -- cilium endpoint list | grep "10\.0\.0\."
+# → reserved:health  10.0.0.17  ready
+
+for node in idp-cluster-control-plane idp-cluster-worker idp-cluster-worker2 idp-cluster-worker3; do
+  echo "=== $node ==="
+  docker exec $node ip addr show cilium_host 2>/dev/null | grep "inet "
+done
+
