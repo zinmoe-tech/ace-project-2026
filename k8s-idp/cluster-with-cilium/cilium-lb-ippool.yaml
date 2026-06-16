@@ -9,3 +9,26 @@ spec:
   blocks:
     - start: "172.18.255.200"
       stop: "172.18.255.250"
+
+# Without this, Cilium will assign random IPs from the kind Docker subnet to LoadBalancer services, which can conflict with the node IPs and cause connectivity issues.
+# We need to modify bpf-lb-sock: "false" as true to allow Cilium to use the IPs from the pool for LoadBalancer services.
+# Before applying this, make sure to check with the below command
+
+# $ kubectl get cm -n kube-system cilium-config -o yaml | grep bpf-lb-sock
+
+# To enable the bpf-lb-sock, you can use the below command
+
+# $ kubectl patch cm -n kube-system cilium-config --type merge -p '{"data":{"bpf-lb-sock":"true"}}'
+
+# (or)  
+
+# #helm upgrade cilium cilium/cilium \
+#   --namespace kube-system \
+#   --reuse-values \
+#   --set socketLB.enabled=true
+
+# helm upgrade cilium cilium/cilium --version 1.19.4 -n kube-system --reuse-values \
+#   --set socketLB.hostNamespaceOnly=true
+
+# kubectl -n kube-system rollout restart ds/cilium
+# kubectl -n kube-system rollout status ds/cilium    # wait until all 4 are updated

@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Cilium LoadBalancer IPAM + L2 announcement
+#
+# Gives `type: LoadBalancer` Services a real EXTERNAL-IP without MetalLB.
+# Cilium's built-in LB-IPAM assigns an address from the pool below, and the
+# L2 announcement policy makes a node answer ARP for it on the kind docker
+# network (172.19.0.0/16) so the host can actually reach it.
+#
+# PREREQUISITE (one-time): enable L2 announcements via HELM, not `cilium config
+# set`. The Helm value is what grants the cilium ServiceAccount the `leases`
+# RBAC the L2 leader-election needs; the runtime flag alone leaves it forbidden.
+#   helm upgrade cilium cilium/cilium --version 1.19.4 -n kube-system \
+#     --reuse-values \
+#     --set l2announcements.enabled=true \
+#     --set k8sClientRateLimit.qps=10 --set k8sClientRateLimit.burst=20
+#
+# The pool range is high in the kind subnet to avoid the node IPs
+# (172.19.0.2–5). Apply, then watch the global gateway pick up an IP:
+#   kubectl apply -f cluster-with-cilium/lb-ipam-l2.yaml
+#   kubectl get svc -n global-istio-ingress global-istio-ingressgateway
+# ─────────────────────────────────────────────────────────────────────────
+apiVersion: cilium.io/v2          # NOTE: pool graduated to v2 in Cilium 1.19
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: global-lb-pool
+spec:
+  blocks:
+  - start: "172.19.255.200"
+    stop: "172.19.255.250"
+---
+apiVersion: cilium.io/v2alpha1    # L2 announcement policy is still v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: global-l2
+spec:
+  # Announce on the node's primary NIC. kind nodes use eth0.
+  interfaces:
+  - ^eth0$
+  # Announce both LoadBalancer ingress IPs and any externalIPs.
+  loadBalancerIPs: true
+  externalIPs: true
