@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+kind delete clusters idp-cluster
+kubectl config delete-context idp-cluster
 kind delete clusters 123
 kubectl config delete-context 123
 kind delete clusters 124

@@ -1,0 +1,64 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: grc-gateway
+  namespace: grc-ingress
+spec:
+  selector:
+    app: grc-istio-ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - finance.hellocloud.io
+  # - port:
+  #     number: 443
+  #     name: https
+  #     protocol: HTTPS
+  #   hosts:
+  #   - finance.hellocloud.io
+  #   tls:
+  #     mode: SIMPLE
+  #     credentialName: grc-tls
+
+### Verification cmd : kubectl get gateways.networking.istio.io -n grc-ingress
+
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: grc-routes
+  namespace: grc-team
+spec:
+  hosts:
+  - finance.hellocloud.io
+  gateways:
+  - grc-ingress/grc-gateway   # cross-namespace reference
+  http:
+  - match:
+    - uri:
+        prefix: /audits
+    route:
+    - destination:
+        host: fraud-svc.grc-team.svc.cluster.local
+        port:
+          number: 6061
+
+
+# # your VS lives here:
+# kubectl get virtualservice -n grc-team
+
+# # short alias `vs`:
+# kubectl get vs -n grc-team
+
+# # ALL virtualservices, every namespace (most useful):
+# kubectl get vs -A
+
+# # explicit (unambiguous) form:
+# kubectl get virtualservices.networking.istio.io -A
+
+# # full details of one:
+# kubectl get vs grc-routes -n grc-team -o yaml
+# kubectl describe vs grc-routes -n grc-team

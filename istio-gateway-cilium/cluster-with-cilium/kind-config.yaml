@@ -1,0 +1,93 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: kind-config.yaml
+#
+# PURPOSE:
+#   Defines the local Kubernetes cluster topology using kind (Kubernetes
+#   IN Docker). This config creates a 4-node cluster that mirrors a
+#   real production setup — 1 control plane + 3 workers.
+#
+#   Key decisions:
+#   - disableDefaultCNI: true  → we install Cilium as CNI instead of kindnet
+#   - kubeProxyMode: none      → Cilium replaces kube-proxy using eBPF
+#   - Port mappings on control-plane → lets ingress-nginx receive
+#     traffic on localhost:80 and localhost:443 from your browser
+#   - Node labels → simulate real topology (platform node, tenant nodes)
+#
+#   Used by: kind create cluster --config kind-config.yaml
+# ═══════════════════════════════════════════════════════════════════════
+
+kind: Cluster                      # kind resource type — always "Cluster" for cluster config
+apiVersion: kind.x-k8s.io/v1alpha4 # kind API version — use v1alpha4 for kind 0.20+
+name: idp-cluster                  # Cluster name — used in kubeconfig context name
+                                   # Your context will be: kind-idp-cluster
+
+networking:
+  # Disable kind's default CNI (kindnet).
+  # We install Cilium manually after cluster creation.
+  # Without this, kindnet starts first and conflicts with Cilium.
+  disableDefaultCNI: true
+
+  # Disable kube-proxy entirely.
+  # Cilium uses eBPF to handle all service routing natively —
+  # faster than iptables-based kube-proxy and more observable.
+  # Cilium must be installed with kubeProxyReplacement=true to match.
+  kubeProxyMode: none
+
+  # Pod IP address range — must not overlap with your host network.
+  # Cilium will manage IP allocation within this range.
+  podSubnet: "10.244.0.0/16"
+
+  # Service (ClusterIP) address range — virtual IPs for k8s Services.
+  # Must not overlap with podSubnet or host network.
+  serviceSubnet: "10.96.0.0/12"
+
+nodes:
+  # ── Control Plane ──────────────────────────────────────────────────
+  - role: control-plane            # Runs API server, scheduler, controller-manager
+
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            # Label the control-plane node as ingress-ready.
+            # ingress-nginx uses a nodeSelector for this label
+            # to know which node to bind ports 80/443 on.
+            node-labels: "ingress-ready=true"
+
+    extraPortMappings:
+      # Map container port 80 → host port 80.
+      # Allows hitting http://localhost in your browser
+      # and reaching ingress-nginx inside the cluster.
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+
+      # Map container port 443 → host port 443.
+      # Allows hitting https://localhost and reaching
+      # TLS-terminated ingress rules inside the cluster.
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+
+  # ── Worker Node 1 — Platform workloads ────────────────────────────
+  - role: worker                   # Runs tenant and platform workloads (pods)
+    labels:
+      # Custom node label — used by platform tools (Prometheus, ArgoCD)
+      # to schedule onto a dedicated node via nodeSelector or nodeAffinity.
+      # Keeps platform observability tools off tenant nodes.
+      #node-role: platform
+
+  # ── Worker Node 2 — Team-a workloads ──────────────────────────────
+  - role: worker
+    labels:
+      # Custom node label — team-a Deployments can use nodeAffinity
+      # to prefer this node. Simulates dedicated node pools per tenant.
+      #node-role: team-a
+
+  # ── Worker Node 3 — Team-b workloads ──────────────────────────────
+  - role: worker
+    labels:
+      # Custom node label — team-b Deployments can use nodeAffinity
+      # to prefer this node. Each team gets their own worker in this setup.
+      #node-role: team-b

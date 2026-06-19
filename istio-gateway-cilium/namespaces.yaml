@@ -1,0 +1,48 @@
+# All namespaces required by this Istio gateway setup.
+# istioctl install does NOT create these automatically, so apply this file
+# BEFORE installing Istio and before applying the gateway/virtualservice manifests:
+#   kubectl apply -f istio-gateway-cilium/namespaces.yaml
+#   istioctl install -f istio-gateway-cilium/minimal-profile.yaml
+#   kubectl apply -k istio-gateway-cilium/global-istio-gw/
+#
+#   * *-ingress  -> host Istio ingress gateway pods.
+#   * *-team     -> host application workloads.
+
+# ---------- Ingress gateway namespaces ----------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: retail-banking-ingress
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payments-ingress
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grc-ingress
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: global-istio-ingress
+  labels:
+    kubernetes.io/metadata.name: global-istio-ingress
+---
+# ---------- Team / workload namespaces ----------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: retail-banking-team
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payments-team
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grc-team

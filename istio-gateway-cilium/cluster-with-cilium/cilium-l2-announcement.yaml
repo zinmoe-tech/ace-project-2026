@@ -1,0 +1,13 @@
+# Tells Cilium to advertise LoadBalancer IPs on the local network via L2 (ARP).
+# This makes the assigned IPs reachable from your host machine.
+# interface eth0 is the default NIC inside kind node containers.
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: kind-l2
+spec:
+  # interfaces:
+  #   - eth0
+  externalIPs: true
+  loadBalancerIPs: true
+

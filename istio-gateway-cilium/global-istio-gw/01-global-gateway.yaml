@@ -1,0 +1,52 @@
+# The GLOBAL Istio Gateway -- the Istio-native replacement for the Kong edge.
+#
+# It selects the global ingress gateway pod (declared in istio/minimal-profile.yaml
+# as `global-istio-ingressgateway`) and currently listens on plain HTTP :80.
+#
+# This is the single place where TLS termination for the whole platform will be
+# configured. The `tls:` block below is commented out -- uncomment ONE server
+# block at a time to test each TLS mode from the Istio docs table.
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: global-istio-gateway
+  namespace: global-istio-ingress
+spec:
+  selector:
+    app: global-istio-ingressgateway
+  servers:
+  # - port:
+  #     number: 80
+  #     name: http
+  #     protocol: HTTP
+  #   hosts:
+  #   - finance.hellocloud.io
+
+  # ----------------------------------------------------------------------------
+  # TLS termination -- SIMPLE mode (one-way TLS: server cert only).
+  #
+  # The gateway decrypts here, so it can still route on the HTTP path.
+  # `credentialName` is a kubernetes.io/tls Secret that MUST live in this
+  # gateway pod's namespace (global-istio-ingress):
+  #   kubectl -n global-istio-ingress create secret tls finance-tls \
+  #     --cert=finance.crt --key=finance.key
+  # ----------------------------------------------------------------------------
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - finance.hellocloud.io
+    tls:
+      mode: SIMPLE
+      credentialName: finance-tls
+
+  # Optional: redirect plain HTTP -> HTTPS once TLS is enabled.
+  # - port:
+  #     number: 80
+  #     name: http
+  #     protocol: HTTP
+  #   hosts:
+  #   - finance.hellocloud.io
+  #   tls:
+  #     httpsRedirect: true

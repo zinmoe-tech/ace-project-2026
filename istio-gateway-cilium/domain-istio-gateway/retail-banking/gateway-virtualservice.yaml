@@ -1,0 +1,38 @@
+# Gateway lives in retail-banking-ingress (same namespace as the IngressGateway pod).
+# VirtualService lives in retail-banking-team and references the Gateway by full path:
+#   <gateway-namespace>/<gateway-name>
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: retail-banking-gateway
+  namespace: retail-banking-ingress
+spec:
+  selector:
+    app: retail-banking-istio-ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - finance.hellocloud.io
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: retail-banking-routes
+  namespace: retail-banking-team
+spec:
+  hosts:
+  - finance.hellocloud.io
+  gateways:
+  - retail-banking-ingress/retail-banking-gateway   # cross-namespace reference
+  http:
+  - match:
+    - uri:
+        prefix: /accounts
+    route:
+    - destination:
+        host: customer-profile-svc.retail-banking-team.svc.cluster.local
+        port:
+          number: 8081
