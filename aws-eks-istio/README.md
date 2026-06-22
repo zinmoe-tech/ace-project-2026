@@ -6,47 +6,45 @@ project can run on managed Kubernetes.
 ## Architecture
 
 ```
-                          Internet
-                              │
-                              ▼
-                   ┌─────────────────────┐
-                   │   AWS NLB (public)  │   ← replaces MetalLB / Cilium LB IPAM
-                   └─────────────────────┘
-══════════════════════════════│════════════════════════════════ AWS account
-   VPC 10.0.0.0/16             │           (Terraform: vpc.tf / eks.tf)
-   3 AZs · public+private subnets · NAT
-                              │
-┌─────────────────────────────┼──────────────────────────────────────────┐
-│ EKS cluster (AWS VPC CNI)    │                                          │
-│                             ▼                                           │
-│   namespace: global-istio-ingress                                       │
-│   ┌───────────────────────────────────────────┐                        │
-│   │ global-istio-ingressgateway (Envoy pod)    │  Service type=LoadBalancer│
-│   │ Gateway: global-istio-gateway  :80         │                        │
-│   │ VirtualService: /grc/audits → rewrite /audits                       │
-│   └───────────────────────────────────────────┘                        │
-│                             │ (in-cluster, ClusterIP)                   │
-│                             ▼                                           │
-│   namespace: grc-ingress                                                │
-│   ┌───────────────────────────────────────────┐                        │
-│   │ grc-istio-ingressgateway (Envoy pod)       │  Service type=ClusterIP│
-│   │ Gateway: grc-gateway  :80                  │                        │
-│   └───────────────────────────────────────────┘                        │
-│                             │                                           │
-│                             ▼                                           │
-│   namespace: grc-team                                                   │
-│   ┌───────────────────────────────────────────┐                        │
-│   │ VirtualService: grc-routes  /audits        │                        │
-│   │ fraud-svc.grc-team.svc.cluster.local:6061  │  (your microservice)   │
-│   └───────────────────────────────────────────┘                        │
-│                                                                         │
-│   namespace: istio-system   ← istio-base + istiod (control plane)       │
-│                                Terraform/Helm: istio.tf                  │
-└─────────────────────────────────────────────────────────────────────────┘
+                         Internet
+                            │
+                            ▼
+                ┌──────────────────────┐
+                │   AWS NLB  (public)   │   replaces MetalLB / Cilium LB IPAM
+                └──────────────────────┘
+ ═══════════════════════════╪═══════════════════════════════  AWS account
+   VPC 10.0.0.0/16 · 3 AZs · public+private subnets · NAT       (vpc.tf · eks.tf)
+ ═══════════════════════════╪═══════════════════════════════
+                            │
+                            ▼     EKS cluster · AWS VPC CNI
 
-Request path:
-  user → NLB → global-istio-gateway → (rewrite /grc/audits → /audits)
-       → grc-istio-ingressgateway → grc-routes VS → fraud-svc:6061
+ ┌─ namespace: global-istio-ingress · Service: LoadBalancer ────────────
+ │   global-istio-ingressgateway   (Envoy pod)
+ │   Gateway         global-istio-gateway   :80
+ │   VirtualService  global-routes
+ │                   /grc/audits  →  rewrite to /audits
+ └──────────────────────────────────────────────────────────────────────
+                            │  in-cluster
+                            ▼
+ ┌─ namespace: grc-ingress · Service: ClusterIP ───────────────────────
+ │   grc-istio-ingressgateway   (Envoy pod)
+ │   Gateway         grc-gateway   :80
+ └──────────────────────────────────────────────────────────────────────
+                            │
+                            ▼
+ ┌─ namespace: grc-team ───────────────────────────────────────────────
+ │   VirtualService  grc-routes   /audits
+ │   →  fraud-svc.grc-team.svc.cluster.local:6061   (your microservice)
+ └──────────────────────────────────────────────────────────────────────
+
+ ┌─ namespace: istio-system · control plane ───────────────────────────
+ │   istio-base + istiod          Terraform/Helm: istio.tf
+ │   · · · configures every Envoy gateway shown above
+ └──────────────────────────────────────────────────────────────────────
+
+ Request path:
+   user → NLB → global-istio-gateway → (rewrite /grc/audits → /audits)
+        → grc-istio-ingressgateway → grc-routes → fraud-svc:6061
 ```
 
 **Who builds what:** Terraform builds the VPC, EKS cluster, and Istio control

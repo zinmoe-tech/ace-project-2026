@@ -19,33 +19,29 @@ istio-manifests/
 ## Request flow
 
 ```
-  user
-   │  http://<NLB>/grc/audits   (Host: finance.hellocloud.io)
-   ▼
- ┌─────────────┐
- │  AWS NLB    │  (from the global GW's LoadBalancer Service)
- └─────────────┘
-   │
-   ▼  namespace: global-istio-ingress
- ┌──────────────────────────────────────────────┐
- │ global-istio-gateway  (Gateway :80)           │
- │ global-routes         (VirtualService)        │
- │   match /grc/audits  →  rewrite to /audits     │
- └──────────────────────────────────────────────┘
-   │  → grc-istio-ingressgateway.grc-ingress.svc.cluster.local:80
-   ▼  namespace: grc-ingress
- ┌──────────────────────────────────────────────┐
- │ grc-gateway           (Gateway :80)           │
- └──────────────────────────────────────────────┘
-   │
-   ▼  namespace: grc-team
- ┌──────────────────────────────────────────────┐
- │ grc-routes            (VirtualService)        │
- │   match /audits  →  fraud-svc:6061             │
- └──────────────────────────────────────────────┘
-   │
-   ▼
- fraud-svc.grc-team.svc.cluster.local:6061   (your microservice)
+   user
+     │  GET http://<NLB>/grc/audits      Host: finance.hellocloud.io
+     ▼
+   ┌─ AWS NLB ─ (public) ─ from the global GW's LoadBalancer Service
+   └────────────────────────────────────────────────────────────────
+     │
+     ▼  namespace: global-istio-ingress
+   ┌─ global-istio-gateway   (Gateway :80) ──────────────────────────
+   │   global-routes         (VirtualService)
+   │     match /grc/audits   →   rewrite to /audits
+   └────────────────────────────────────────────────────────────────
+     │  → grc-istio-ingressgateway.grc-ingress.svc.cluster.local:80
+     ▼  namespace: grc-ingress
+   ┌─ grc-gateway            (Gateway :80) ──────────────────────────
+   └────────────────────────────────────────────────────────────────
+     │
+     ▼  namespace: grc-team
+   ┌─ grc-routes             (VirtualService) ───────────────────────
+   │     match /audits   →   fraud-svc:6061
+   └────────────────────────────────────────────────────────────────
+     │
+     ▼
+   fraud-svc.grc-team.svc.cluster.local:6061   (your microservice)
 ```
 
 Two ingress hops on purpose: the **global** gateway is the one public NLB and
