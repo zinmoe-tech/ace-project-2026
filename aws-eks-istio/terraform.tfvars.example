@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars and adjust.
+region             = "ap-southeast-1"
+cluster_name       = "idp-cluster"
+kubernetes_version = "1.33"
+vpc_cidr           = "10.0.0.0/16"
+
+node_instance_types = ["t3.large"]
+node_desired_size   = 3
+node_min_size       = 2
+node_max_size       = 5
+
+istio_version = "1.29.2"
+
+tags = {
+  Project   = "eks-istio"
+  ManagedBy = "terraform"
+  Owner     = "zinmoe"
+}

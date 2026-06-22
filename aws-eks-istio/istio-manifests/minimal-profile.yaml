@@ -1,0 +1,56 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  profile: minimal
+  hub: docker.io/istio
+  tag: 1.29.2
+
+  components:
+    # Control plane (base + istiod) is installed by Terraform via Helm, so we
+    # DISABLE it here to avoid two installs fighting over the same resources.
+    # This profile only adds the ingress gateways on top.
+    base:
+      enabled: false
+    pilot:
+      enabled: false
+
+    ingressGateways:
+    # --- grc team ingress gateway: internal only (ClusterIP), reached by the
+    #     global edge gateway in-cluster. Same as the cilium setup. ---
+    - name: grc-istio-ingressgateway
+      enabled: true
+      namespace: grc-ingress
+      label:
+        app: grc-istio-ingressgateway
+      k8s:
+        service:
+          type: ClusterIP
+        hpaSpec:
+          maxReplicas: 2
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+    # --- GLOBAL edge gateway: the single external entry point. On AWS this is a
+    #     LoadBalancer Service, which the EKS in-tree cloud provider turns into an
+    #     internet-facing NLB (the AWS replacement for MetalLB / Cilium LB IPAM).
+    #     The serviceAnnotations below are what select NLB + public scheme. ---
+    - name: global-istio-ingressgateway
+      enabled: true
+      namespace: global-istio-ingress
+      label:
+        app: global-istio-ingressgateway
+      k8s:
+        service:
+          type: LoadBalancer
+        serviceAnnotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: nlb
+          service.beta.kubernetes.io/aws-load-balancer-internal: "false"
+
+  values:
+    global:
+      istioNamespace: istio-system

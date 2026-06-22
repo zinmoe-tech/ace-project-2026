@@ -1,0 +1,36 @@
+# The GLOBAL Istio Gateway -- the single external edge for the platform.
+#
+# It selects the global ingress gateway pod (declared in minimal-profile.yaml as
+# `global-istio-ingressgateway`, exposed via an AWS NLB). It listens on plain
+# HTTP :80 to keep this runnable without a TLS secret. To enable TLS, uncomment
+# the HTTPS block and create the kubernetes.io/tls Secret in THIS namespace:
+#   kubectl -n global-istio-ingress create secret tls finance-tls \
+#     --cert=finance.crt --key=finance.key
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: global-istio-gateway
+  namespace: global-istio-ingress
+spec:
+  selector:
+    app: global-istio-ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - finance.hellocloud.io
+
+  # ----------------------------------------------------------------------------
+  # TLS termination -- SIMPLE mode (one-way TLS: server cert only).
+  # ----------------------------------------------------------------------------
+  # - port:
+  #     number: 443
+  #     name: https
+  #     protocol: HTTPS
+  #   hosts:
+  #   - finance.hellocloud.io
+  #   tls:
+  #     mode: SIMPLE
+  #     credentialName: finance-tls
