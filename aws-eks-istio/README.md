@@ -3,6 +3,56 @@
 Stands up the AWS equivalent of the local kind + Cilium setup, so the Istio
 project can run on managed Kubernetes.
 
+## Architecture
+
+```
+                          Internet
+                              │
+                              ▼
+                   ┌─────────────────────┐
+                   │   AWS NLB (public)  │   ← replaces MetalLB / Cilium LB IPAM
+                   └─────────────────────┘
+══════════════════════════════│════════════════════════════════ AWS account
+   VPC 10.0.0.0/16             │           (Terraform: vpc.tf / eks.tf)
+   3 AZs · public+private subnets · NAT
+                              │
+┌─────────────────────────────┼──────────────────────────────────────────┐
+│ EKS cluster (AWS VPC CNI)    │                                          │
+│                             ▼                                           │
+│   namespace: global-istio-ingress                                       │
+│   ┌───────────────────────────────────────────┐                        │
+│   │ global-istio-ingressgateway (Envoy pod)    │  Service type=LoadBalancer│
+│   │ Gateway: global-istio-gateway  :80         │                        │
+│   │ VirtualService: /grc/audits → rewrite /audits                       │
+│   └───────────────────────────────────────────┘                        │
+│                             │ (in-cluster, ClusterIP)                   │
+│                             ▼                                           │
+│   namespace: grc-ingress                                                │
+│   ┌───────────────────────────────────────────┐                        │
+│   │ grc-istio-ingressgateway (Envoy pod)       │  Service type=ClusterIP│
+│   │ Gateway: grc-gateway  :80                  │                        │
+│   └───────────────────────────────────────────┘                        │
+│                             │                                           │
+│                             ▼                                           │
+│   namespace: grc-team                                                   │
+│   ┌───────────────────────────────────────────┐                        │
+│   │ VirtualService: grc-routes  /audits        │                        │
+│   │ fraud-svc.grc-team.svc.cluster.local:6061  │  (your microservice)   │
+│   └───────────────────────────────────────────┘                        │
+│                                                                         │
+│   namespace: istio-system   ← istio-base + istiod (control plane)       │
+│                                Terraform/Helm: istio.tf                  │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Request path:
+  user → NLB → global-istio-gateway → (rewrite /grc/audits → /audits)
+       → grc-istio-ingressgateway → grc-routes VS → fraud-svc:6061
+```
+
+**Who builds what:** Terraform builds the VPC, EKS cluster, and Istio control
+plane (`istio-system`). The gateways and routing come from
+[`istio-manifests/`](istio-manifests/) via `istioctl` + `kubectl`.
+
 ## What this creates
 
 | Layer | Resource |
