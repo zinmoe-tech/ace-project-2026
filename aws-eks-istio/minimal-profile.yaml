@@ -1,0 +1,56 @@
+# All ingress gateways for the platform, in ONE IstioOperator — same pattern as
+# istio-gateway-cilium/minimal-profile.yaml. The global gateway is just one more
+# entry here, not a separate install.
+#
+# Differences from the cilium version:
+#   * profile: empty + base/pilot omitted  -> the control plane (base + istiod)
+#     is installed by Terraform/Helm in istio-system, so this only adds gateways.
+#   * global gateway is ClusterIP (internal), NOT LoadBalancer — no public NLB.
+#     Reach the global tier via kubectl port-forward.
+#
+# Apply with:  istioctl install -f minimal-profile.yaml
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  profile: empty
+  hub: docker.io/istio
+  tag: 1.29.2
+
+  components:
+    ingressGateways:
+    # --- grc DOMAIN gateway: internal, reached by the global gw in-cluster ---
+    - name: grc-istio-ingressgateway
+      enabled: true
+      namespace: grc-ingress               # separated from microservice namespace
+      label:
+        app: grc-istio-ingressgateway
+      k8s:
+        service:
+          type: ClusterIP                  # No external IP — reached internally by the global gw
+        hpaSpec:
+          maxReplicas: 2
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+    # GLOBAL edge gateway — the single PUBLIC entry point for the platform. This
+    # is the ONLY tier exposed externally: type LoadBalancer, which the EKS cloud
+    # provider turns into an internet-facing NLB (the AWS replacement for MetalLB
+    # / Cilium LB IPAM). Users hit this NLB; the domain gateway + microservices
+    # below stay ClusterIP and are reached only through here.
+    # The Gateway/VirtualService routing lives in global-istio-gw/.
+    - name: global-istio-ingressgateway
+      enabled: true
+      namespace: global-istio-ingress
+      label:
+        app: global-istio-ingressgateway
+      k8s:
+        service:
+          type: LoadBalancer
+        serviceAnnotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: nlb
+          service.beta.kubernetes.io/aws-load-balancer-internal: "false"

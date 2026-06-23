@@ -1,6 +1,8 @@
-# Gateway lives in grc-ingress (same namespace as the grc IngressGateway pod).
-# VirtualService lives in grc-team and references the Gateway by full path:
-#   <gateway-namespace>/<gateway-name>
+# grc DOMAIN gateway (TIER 2). Mirrors istio-gateway-cilium/domain-istio-gateway/grc/.
+#
+# Gateway lives in grc-ingress (same namespace as the grc ingress gateway pod).
+# VirtualService lives in grc-ns (the workload namespace) and references the
+# Gateway by full path <gateway-namespace>/<gateway-name>.
 apiVersion: networking.istio.io/v1
 kind: Gateway
 metadata:
@@ -15,27 +17,24 @@ spec:
       name: http
       protocol: HTTP
     hosts:
-    - finance.hellocloud.io
+    - grc.ky-cloud.click
 ---
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
   name: grc-routes
-  namespace: grc-team
+  namespace: grc-ns
 spec:
   hosts:
-  - finance.hellocloud.io
+  - grc.ky-cloud.click
   gateways:
   - grc-ingress/grc-gateway   # cross-namespace reference
   http:
   - match:
     - uri:
-        prefix: /audits
+        prefix: /
     route:
     - destination:
-        host: fraud-svc.grc-team.svc.cluster.local
+        host: fraud-svc.grc-ns.svc.cluster.local
         port:
           number: 6061
-
-### Verification: kubectl get gateways.networking.istio.io -n grc-ingress
-###               kubectl get vs -n grc-team

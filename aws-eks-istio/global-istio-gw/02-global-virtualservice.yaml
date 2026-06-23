@@ -1,0 +1,27 @@
+# Global routing table for the entry gateway.
+#
+# Forwards grc.ky-cloud.click traffic to the grc DOMAIN ingress gateway Service
+# (the ClusterIP gateway from minimal-profile.yaml). The Host header stays
+# grc.ky-cloud.click, so grc's own Gateway/VirtualService (app/grc/) still bind.
+#
+# Flow: client -> global gateway -> (this VS) -> grc domain gateway Service
+#              -> grc Gateway/VirtualService -> fraud-svc -> audit -> sanction
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: global-routes
+  namespace: global-istio-ingress
+spec:
+  hosts:
+  - grc.ky-cloud.click
+  gateways:
+  - global-istio-ingress/global-istio-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: grc-istio-ingressgateway.grc-ingress.svc.cluster.local
+        port:
+          number: 80

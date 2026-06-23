@@ -1,0 +1,13 @@
+# grc namespaces:
+#   grc-ingress -> hosts the grc DOMAIN ingress gateway pod (Envoy)
+#   grc-ns      -> hosts the fraud/audit/sanction workloads
+# No istio-injection label (no sidecars / mTLS, by design).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grc-ingress
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grc-ns

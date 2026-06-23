@@ -1,0 +1,8 @@
+# Namespace that hosts the GLOBAL Istio ingress gateway pod (the entry tier).
+# No istio-injection label — the gateway pod IS the Envoy proxy.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: global-istio-ingress
+  labels:
+    kubernetes.io/metadata.name: global-istio-ingress
