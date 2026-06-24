@@ -69,6 +69,9 @@ argocd login localhost:8080 \
   --insecure
 
 # Add your repo
+
+kubectl config set-context --current --namespace=argocd
+
 argocd repo add https://github.com/zinmoe-tech/ace-project-2026.git
 
 # Output
@@ -147,3 +150,22 @@ kubectl config view --minify --output 'jsonpath={..namespace}'
 
 kubectl config set-context --current --namespace=argocd
 argocd app sync payments-istio --core
+
+
+# 1. Remove the failed release + leftover hook job
+helm uninstall argocd -n argocd
+kubectl -n argocd delete job argocd-redis-secret-init --ignore-not-found
+
+# 2. Reinstall (nodes are Ready now). Bump the timeout so a slow
+#    image pull on a fresh cluster doesn't trip --wait again.
+helm install argocd argo/argo-cd \
+  --version 7.3.6 \
+  --namespace argocd \
+  --create-namespace \
+  --set configs.params."server\.insecure"=true \
+  --wait --timeout 10m
+
+# 3. Verify everything is up (you should now see server, repo-server,
+#    application-controller, redis, dex, applicationset)
+kubectl -n argocd get pods
+kubectl -n argocd get cm argocd-cm
