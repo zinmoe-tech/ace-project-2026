@@ -130,6 +130,30 @@ subjects:
     namespace: team-b
 
 ---
+# ── CROSS-TEAM RoleBinding: let TEAM-A engineers VIEW team-b ─────────
+# This binding LIVES IN team-b, so it grants access here. It binds the
+# team-a developers group to team-b's read-only `viewer` Role.
+# Result: team-a engineers can READ team-b, but cannot modify it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-a-view-team-b
+  namespace: team-b
+  labels:
+    managed-by: argocd
+    cross-team: "true"
+
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: viewer                     # team-b's read-only Role (above)
+
+subjects:
+  - kind: Group
+    name: team-a-developers        # team-a engineers
+    apiGroup: rbac.authorization.k8s.io
+
+---
 # ── ServiceAccounts for local testing ───────────────────────────────
 apiVersion: v1
 kind: ServiceAccount
