@@ -169,3 +169,13 @@ helm install argocd argo/argo-cd \
 #    application-controller, redis, dex, applicationset)
 kubectl -n argocd get pods
 kubectl -n argocd get cm argocd-cm
+
+
+### Why I got this error
+
+argocd app sync platform-namespaces --core
+{"level":"fatal","msg":"configmap \"argocd-cm\" not found","time":"2026-06-26T13:12:52+04:00"}
+
+#the reason is this command run in default name space. Thus, we need to declare namespace.
+
+kubectl config set-context --current --namespace=argocd
