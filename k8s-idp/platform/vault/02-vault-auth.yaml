@@ -1,0 +1,31 @@
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: platform/vault/02-vault-auth.yaml
+#
+# PURPOSE:
+#   Tells VSO HOW to authenticate to Vault — using the Kubernetes auth
+#   method and the "idp" role you create during Vault bootstrap.
+#   Lives in the operator namespace (vault). Because it is referenced
+#   cross-namespace by VaultStaticSecrets in monitoring/argocd, those
+#   namespaces are listed under allowedNamespaces.
+#
+#   The serviceAccount below (vault/idp-auth-sa, or default) must be bound
+#   in the Vault Kubernetes role "idp" (see SETUP.md).
+# ═══════════════════════════════════════════════════════════════════════
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: idp-auth
+  namespace: vault
+  labels:
+    managed-by: argocd
+spec:
+  vaultConnectionRef: idp-vault      # references 01-vault-connection.yaml
+  method: kubernetes
+  mount: kubernetes                  # the Vault auth mount path
+  kubernetes:
+    role: idp                        # Vault role created during bootstrap
+    serviceAccount: default          # SA (in namespace vault) used to log in
+  # Permit VaultStaticSecrets in these namespaces to reference this auth.
+  allowedNamespaces:
+    - monitoring
+    - argocd

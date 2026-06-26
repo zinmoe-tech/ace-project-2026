@@ -15,9 +15,14 @@
 grafana:
   enabled: true                    # Install Grafana
 
-  # Default admin credentials — change in production
-  adminUser: admin
-  adminPassword: admin123
+  # Admin credentials are sourced from Vault via the Vault Secrets
+  # Operator, which materializes the "grafana-admin" Secret in this
+  # namespace (see platform/vault/03-grafana-secret.yaml).
+  # No plaintext password lives in Git.
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
 
   service:
     type: ClusterIP                # Accessible via port-forward locally
