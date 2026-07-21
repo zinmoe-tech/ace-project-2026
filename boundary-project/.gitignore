@@ -1,0 +1,12 @@
+*.pem
+*.env
+.env
+.env.*
+!.env.example
+hcp.auto.pkrvars.hcl
+!hcp.auto.pkrvars.hcl.example
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
