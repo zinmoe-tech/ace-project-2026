@@ -19,7 +19,23 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# The worker-specific AMI published by packer/boundary-worker.pkr.hcl —
+# built and channel-assigned separately, before this module is applied.
+# Gated the same way as aws_instance.worker below: on a fresh deploy nothing
+# has been published to the channel yet, so this must stay skipped until
+# create_worker_instance is flipped to true (see variables.tf).
+data "hcp_packer_artifact" "worker" {
+  count = var.create_worker_instance ? 1 : 0
+
+  bucket_name  = var.hcp_packer_bucket_name
+  channel_name = var.hcp_packer_channel
+  platform     = "aws"
+  region       = var.region
+}
+
 resource "aws_instance" "bastion" {
+  count = var.create_bastion_instance ? 1 : 0
+
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   subnet_id                   = aws_subnet.public.id
@@ -32,8 +48,14 @@ resource "aws_instance" "bastion" {
   })
 }
 
+# count = 0 on the first apply: this module's own public subnet has to
+# exist before packer/build.sh can launch its temporary build instance
+# into it, and the AMI that build produces has to exist before this
+# instance can reference it. See create_worker_instance in variables.tf.
 resource "aws_instance" "worker" {
-  ami                    = data.aws_ami.ubuntu.id
+  count = var.create_worker_instance ? 1 : 0
+
+  ami                    = data.hcp_packer_artifact.worker[0].external_identifier
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.private.id
   vpc_security_group_ids = [aws_security_group.worker.id]

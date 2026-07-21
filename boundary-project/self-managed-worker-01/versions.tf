@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.60"
     }
+    hcp = {
+      source  = "hashicorp/hcp"
+      version = "~> 0.100"
+    }
   }
 
   # Recommended: store state remotely. Uncomment and set your bucket/table.

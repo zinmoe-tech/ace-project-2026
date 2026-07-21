@@ -19,6 +19,27 @@ packer {
   }
 }
 
+# Publishes the resulting AMI to the HCP Packer registry once the build
+# completes, so it can be tracked by version/channel instead of AMI ID.
+# Top-level (not nested in `build`) — nesting it there is deprecated as of
+# Packer 1.12.1+.
+hcp_packer_registry {
+  bucket_name = "boundary-self-managed-worker" # groups every build of this template together in HCP Packer
+
+  description = "Ubuntu AMI with the Boundary self-managed PKI worker pre-installed; renders its config and registers with HCP Boundary on first boot." # shown in the HCP Packer UI
+
+  # Labels on the bucket itself (apply to every version/build published under it).
+  bucket_labels = {
+    "project" = "boundary-project"
+  }
+
+  # Labels on this specific build/version (can vary build to build, e.g. by OS or component).
+  build_labels = {
+    "os"        = "ubuntu"
+    "component" = "boundary-worker"
+  }
+}
+
 variable "region" {
   type    = string
   default = "ap-southeast-1"
@@ -32,6 +53,13 @@ variable "instance_type" {
 variable "ssh_username" {
   type    = string
   default = "ubuntu"
+}
+
+# Matches aws_profile in both Terraform modules — named explicitly so this
+# doesn't silently depend on whatever AWS credentials happen to be default.
+variable "aws_profile" {
+  type    = string
+  default = "master-access"
 }
 
 # These three are NOT read by the hcp_packer_registry block above — HCP auth
@@ -56,6 +84,29 @@ source "amazon-ebs" "boundary_worker" {
   region        = var.region
   instance_type = var.instance_type
   ssh_username  = var.ssh_username
+  profile       = var.aws_profile
+
+  # This account has no default VPC, so the temporary build instance needs
+  # an explicit landing spot. Found by tag rather than hardcoded ID since
+  # the VPC/subnet are created by ../vpc.tf (a separate Terraform apply,
+  # not this Packer run) — same tag-lookup pattern used for VPC peering
+  # elsewhere in this project. Needs create_bastion_instance/
+  # create_worker_instance = false but the network resources themselves
+  # already applied (see terraform.tfvars / SETUP.md phase order).
+  vpc_filter {
+    filters = {
+      "tag:Name" = "boundary-self-managed-worker-vpc"
+    }
+  }
+
+  subnet_filter {
+    filters = {
+      "tag:Name" = "boundary-self-manged-worker-public-sub-01"
+    }
+    random = false
+  }
+
+  associate_public_ip_address = true
 
   source_ami_filter {
     filters = {
@@ -100,24 +151,5 @@ build {
   # does not start) the systemd service.
   provisioner "shell" {
     script = "scripts/install-boundary.sh" # path to the script, relative to this .pkr.hcl file
-  }
-
-  # Publishes the resulting AMI to the HCP Packer registry once the build
-  # completes, so it can be tracked by version/channel instead of AMI ID.
-  hcp_packer_registry {
-    bucket_name = "boundary-self-managed-worker" # groups every build of this template together in HCP Packer
-
-    description = "Ubuntu AMI with the Boundary self-managed PKI worker pre-installed; renders its config and registers with HCP Boundary on first boot." # shown in the HCP Packer UI
-
-    # Labels on the bucket itself (apply to every version/build published under it).
-    bucket_labels = {
-      "project" = "boundary-project"
-    }
-
-    # Labels on this specific build/version (can vary build to build, e.g. by OS or component).
-    build_labels = {
-      "os"        = "ubuntu"
-      "component" = "boundary-worker"
-    }
   }
 }

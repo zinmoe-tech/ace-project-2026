@@ -54,3 +54,49 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "enable_profile_peering_route" {
+  description = "Set true only after profile-service has been applied and its peering connection exists. False on the first apply of this module (see vpc-peering.tf)."
+  type        = bool
+  default     = false
+}
+
+variable "create_bastion_instance" {
+  description = "Whether to create the bastion EC2 instance."
+  type        = bool
+  default     = false
+}
+
+variable "create_worker_instance" {
+  description = "Whether to create the worker EC2 instance. Must be false on the first apply (network only) — the Packer build needs this module's public subnet to exist before it can run, and the worker instance needs the Packer build's AMI to exist before IT can be created. Set true and re-apply only after packer/build.sh has published an image to the channel named in hcp_packer_channel."
+  type        = bool
+  default     = false
+}
+
+variable "hcp_project_id" {
+  description = "HCP project ID that owns the Packer registry bucket the worker AMI was published to."
+  type        = string
+}
+
+variable "hcp_client_id" {
+  description = "HCP service principal client ID (same one used by packer/build.sh)."
+  type        = string
+}
+
+variable "hcp_client_secret" {
+  description = "HCP service principal client secret."
+  type        = string
+  sensitive   = true
+}
+
+variable "hcp_packer_bucket_name" {
+  description = "HCP Packer registry bucket name. Must match bucket_name in packer/boundary-worker.pkr.hcl."
+  type        = string
+  default     = "boundary-self-managed-worker"
+}
+
+variable "hcp_packer_channel" {
+  description = "HCP Packer channel to pull the worker AMI from. Must exist and be assigned to a build before this module's first apply against it."
+  type        = string
+  default     = "production"
+}
