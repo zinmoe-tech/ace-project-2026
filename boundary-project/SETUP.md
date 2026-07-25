@@ -175,38 +175,6 @@ boundary connect ssh -target-id <TARGET_ID> -- -l ubuntu
 
 ---
 
-## Known issues (already fixed) — root cause and solution
+To get token from terraform output, use the below command
 
-History of real bugs hit while building this out, kept here so the *why*
-behind the current structure (count-gated variables, tag-based lookups,
-build order) doesn't get lost. If you're just following the checklist
-above, you shouldn't hit any of these — they're already fixed in the code.
-
-| # | Issue | Root cause | Solution |
-|---|---|---|---|
-| 1 | `self-managed-worker-01` and `profile-service` had dangling references (`aws_vpc.this`, `aws_internet_gateway.this`) that errored on `terraform validate` | Copy-pasted between modules without updating resource names to match what was actually declared (`aws_vpc.self-manged-worker-1-vpc`, etc.) | Fixed every reference to point at the real resource name. |
-| 2 | `profile-service` had no `variables.tf` / `providers.tf` / `versions.tf` at all | Module scaffolding was incomplete — resources referenced `var.*` that was never declared anywhere in the directory | Added all three files, mirroring `self-managed-worker-01`'s structure. |
-| 3 | `self-managed-worker-01`'s peering route (`data.aws_vpc_peering_connection.profile`) failed on every fresh deploy | Circular dependency: this module's data source needed `profile-service`'s peering connection to exist, but `profile-service` needed this module's VPC to exist first — neither could apply first | Gated the data source + route behind `enable_profile_peering_route` (`count`), default `false`. Apply this module, then `profile-service`, then flip the flag and apply again. |
-| 4 | `terraform plan` failed: `The provider hashicorp/hcp does not support data source "hcp_packer_image"` | Used a data source name from memory/docs without checking it against the actually-installed provider version (0.112.0) | Queried the real schema with `terraform providers schema -json`, found it was renamed to `hcp_packer_artifact` with different argument/attribute names (`platform` not `cloud_provider`, `external_identifier` not `cloud_image_id`), fixed both. |
-| 5 | `./build.sh` failed: `The bucket with identifier boundary-self-managed-worker does not exist` | `terraform apply` was run before the Packer build had ever been run — nothing had published to HCP Packer yet | Established the real dependency order: Packer build must run before any Terraform apply that consumes its image. |
-| 6 | `./build.sh` failed: `404 ... No HCP Packer registry was found for this organization and project` | The HCP Packer registry (the parent container for buckets) was never enabled for that HCP project — a one-time manual setup step, not a config bug | Enabled it in the HCP console (project → **Packer** tab). Nothing to fix in code. |
-| 7 | `./build.sh` printed a deprecation warning for `hcp_packer_registry` | That block was nested inside `build { }`, which Packer 1.12.1+ deprecated in favor of a template-level block | Moved `hcp_packer_registry` to the top level of `boundary-worker.pkr.hcl`, alongside `packer { }`. |
-| 8 | `./build.sh` failed: `NoCredentialProviders: no valid providers in chain` | No AWS credentials existed anywhere on the machine — no profile configured, no env vars | Ran `aws configure --profile master-access`. Also added an explicit `profile` argument to the Packer `amazon-ebs` source so it never silently depends on whatever's default. |
-| 9 | `./build.sh` failed: `VPCIdNotSpecified: No default VPC for this user` | This AWS account has no default VPC, and Packer's builder didn't specify one — compounded by the fact that the *intended* VPC (this module's own) didn't exist yet either, since Terraform hadn't been applied | Split `self-managed-worker-01` into a network-only bootstrap apply (both instances `count = 0`) that runs before Packer, then added `vpc_filter`/`subnet_filter` to the Packer source so it finds that subnet by tag once it exists. |
-| 10 | `terraform validate` failed on `outputs.tf`: `A managed resource "aws_instance" "bastion" has not been declared` | Manually commented out `aws_instance.bastion` in `ec2.tf` (to work around issue #9) without updating the outputs that referenced it | Replaced manual commenting with the `create_bastion_instance`/`create_worker_instance` `count` gates (see #9) and wrapped the outputs in `try(..., null)` so they're safe regardless of whether the instance exists yet. |
-
----
-
-## Troubleshooting
-
-| Symptom | Cause / fix |
-|---|---|
-| `terraform apply` fails: `The bucket with identifier boundary-self-managed-worker does not exist` | Phase 2 wasn't run, or ran but didn't finish publishing. Run `./build.sh`, confirm it succeeds, **then** apply. |
-| `terraform apply` fails: `failed to get Version by Channel Name` | Bucket exists but no build is on the channel named in `hcp_packer_channel`. Assign one in the HCP Packer UI. |
-| `./build.sh` fails: `404 ... No HCP Packer registry was found for this organization and project` | The HCP Packer registry itself isn't enabled for that project yet. HCP console → project → **Packer** tab → enable it. Double-check you're in the right project — this error also fires if you're looking at the wrong one. |
-| `./build.sh` fails: `no valid credential sources for  found` / `NoCredentialProviders` | No AWS credentials available at all. Run `aws configure --profile master-access`, verify with `aws sts get-caller-identity --profile master-access`. |
-| `./build.sh` fails: `VPCIdNotSpecified: No default VPC for this user` | This account has no default VPC and Packer had nowhere to launch its build instance. Fixed by the `vpc_filter`/`subnet_filter` in `boundary-worker.pkr.hcl` — but this only works if Phase 1 (network bootstrap) has already been applied. Run Phase 1 before Phase 2. |
-| `scp`: `Permission denied (publickey)` | Network path is fine (peering/routes/security groups all worked) — it's purely an SSH key mismatch. Use `-i` with the right key, and confirm the key file actually exists on the machine you're running `scp` from. |
-| `boundary` CLI: `dial tcp 127.0.0.1:9200: connect: connection refused` | `BOUNDARY_ADDR` isn't set — CLI defaulted to a nonexistent local controller. Export it to your HCP cluster URL. |
-| `boundary` CLI: `failed to open keyring` | Normal on a headless server. Use `-keyring-type=none` and capture the token from `boundary authenticate ... -format=json` into `BOUNDARY_TOKEN` yourself. |
-| Used a worker ID (`w_...`) where a target ID (`ttcp_...`) was expected | Different resource types — `boundary targets list` gives the real target ID. |
+$terraform output -raw worker_auth_request_token
