@@ -11,3 +11,5 @@ hcp.auto.pkrvars.hcl
 .terraform/
 .terraform.lock.hcl
 crash.log
+SETUP.md
+ISSUE_SUMMARY.md
