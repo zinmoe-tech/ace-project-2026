@@ -10,6 +10,14 @@ terraform {
       source  = "hashicorp/hcp"
       version = "~> 0.100"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
 
   # Recommended: store state remotely. Uncomment and set your bucket/table.

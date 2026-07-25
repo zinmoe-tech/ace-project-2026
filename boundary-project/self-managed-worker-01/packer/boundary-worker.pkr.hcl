@@ -120,6 +120,17 @@ source "amazon-ebs" "boundary_worker" {
 
   ami_name = "boundary-self-managed-worker-{{timestamp}}"
 
+  # Default AMI root volume (~8GB) isn't enough headroom for apt-get's
+  # package caches plus the downloaded+unpacked Boundary Enterprise zip in
+  # scripts/install-boundary.sh, which failed extraction with unzip exit
+  # code 50 (disk full).
+  launch_block_device_mappings {
+    device_name           = "/dev/sda1"
+    volume_size           = 16
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
+
   tags = {
     Name      = "boundary-self-managed-worker"
     ManagedBy = "packer"

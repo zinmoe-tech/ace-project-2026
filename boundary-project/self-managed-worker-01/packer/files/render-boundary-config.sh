@@ -10,7 +10,10 @@ if [ -f "$CONFIG" ]; then
   exit 0
 fi
 
-PRIVATE_ADDR=$(curl -fsSL http://169.254.169.254/latest/meta-data/local-ipv4)
+IMDS_TOKEN=$(curl -fsSL -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
+PRIVATE_ADDR=$(curl -fsSL -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
+  http://169.254.169.254/latest/meta-data/local-ipv4)
 
 PRIVATE_ADDR="$PRIVATE_ADDR" envsubst < "$TEMPLATE" > "$CONFIG"
 chown boundary:boundary "$CONFIG"
