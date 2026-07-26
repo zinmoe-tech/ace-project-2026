@@ -1,0 +1,17 @@
+[Unit]
+Description=boundary worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStartPre=/usr/local/bin/render-boundary-config.sh
+ExecStart=/usr/local/bin/boundary server -config /etc/boundary.d/pki-worker.hcl
+User=boundary
+Group=boundary
+LimitMEMLOCK=infinity
+Capabilities=CAP_IPC_LOCK+ep
+CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

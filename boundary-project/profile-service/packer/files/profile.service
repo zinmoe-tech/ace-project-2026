@@ -1,0 +1,22 @@
+[Unit]
+Description=profile-instance-01
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+Environment="LISTEN_ADDR=0.0.0.0:9091"
+Environment="NAME=profile-instance-01"
+Environment="MESSAGE=HelloCloudBank | Retail Banking | profile Instance 01"
+Environment="UPSTREAM_URIS=http://192.168.10.93:9092"
+ExecStart=/usr/local/bin/profile-service
+
+User=ubuntu
+Group=ubuntu
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

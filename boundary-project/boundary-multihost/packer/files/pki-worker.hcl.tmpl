@@ -1,0 +1,15 @@
+disable_mlock = true
+hcp_boundary_cluster_id = "30bf440f-ff6e-4ca2-bc61-5e709ad9254d"
+
+listener "tcp" {
+  address = "0.0.0.0:9202"
+  purpose = "proxy"
+}
+
+worker {
+  public_addr       = "${PRIVATE_ADDR}"
+  auth_storage_path = "/etc/boundary.d/worker"
+  tags {
+    type = ["worker1", "private", "ingress", "zone-a", "downstream"]
+  }
+}

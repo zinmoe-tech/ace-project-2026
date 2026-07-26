@@ -5,18 +5,21 @@ data "aws_key_pair" "profile" {
   key_name = "profile-key"
 }
 
-data "aws_ami" "ubuntu" {
+# Built by packer/profile-service.pkr.hcl — has the profile-service (renamed
+# fake-service) binary and systemd unit pre-installed. Owned by this account
+# ("self"), not "amazon", since it's the custom AMI, not stock Ubuntu.
+data "aws_ami" "profile_service" {
   most_recent = true
-  owners      = ["amazon"]
+  owners      = ["self"]
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-resolute-26.04-amd64-server-*"]
+    values = ["profile-service-*"]
   }
 }
 
 resource "aws_instance" "profile-instance" {
-  ami                    = data.aws_ami.ubuntu.id
+  ami                    = data.aws_ami.profile_service.id
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.profile-private-subnet.id
   vpc_security_group_ids = [aws_security_group.profile-sgp.id]

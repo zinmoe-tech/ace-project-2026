@@ -23,3 +23,23 @@ resource "aws_route" "private_to_profile" {
   destination_cidr_block    = data.aws_vpc_peering_connection.profile[0].peer_cidr_block
   vpc_peering_connection_id = data.aws_vpc_peering_connection.profile[0].id
 }
+
+# Same pattern as the profile peering above, for intermediate-worker-01's
+# peering connection instead. That module creates the connection from its
+# own side (intermediate-worker-01/vpc-peering.tf); this just adds the
+# return route once it exists.
+data "aws_vpc_peering_connection" "intermediate_worker" {
+  count = var.enable_intermediate_worker_peering_route ? 1 : 0
+
+  tags = {
+    Name = "intermediate-worker-to-self-managed-worker-peering"
+  }
+}
+
+resource "aws_route" "private_to_intermediate_worker" {
+  count = var.enable_intermediate_worker_peering_route ? 1 : 0
+
+  route_table_id            = aws_route_table.private.id
+  destination_cidr_block    = data.aws_vpc_peering_connection.intermediate_worker[0].peer_cidr_block
+  vpc_peering_connection_id = data.aws_vpc_peering_connection.intermediate_worker[0].id
+}

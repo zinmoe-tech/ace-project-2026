@@ -55,18 +55,6 @@ variable "tags" {
   default = {}
 }
 
-variable "enable_profile_peering_route" {
-  description = "Set true only after profile-service has been applied and its peering connection exists. False on the first apply of this module (see vpc-peering.tf)."
-  type        = bool
-  default     = false
-}
-
-variable "enable_intermediate_worker_peering_route" {
-  description = "Set true only after intermediate-worker-01 has been applied and its peering connection exists. False on the first apply of this module (see vpc-peering.tf)."
-  type        = bool
-  default     = false
-}
-
 variable "create_bastion_instance" {
   description = "Whether to create the bastion EC2 instance."
   type        = bool
@@ -75,6 +63,12 @@ variable "create_bastion_instance" {
 
 variable "create_worker_instance" {
   description = "Whether to create the worker EC2 instance. Must be false on the first apply (network only) — the Packer build needs this module's public subnet to exist before it can run, and the worker instance needs the Packer build's AMI to exist before IT can be created. Set true and re-apply only after packer/build.sh has published an image to the channel named in hcp_packer_channel."
+  type        = bool
+  default     = false
+}
+
+variable "create_profile_ec2_instance" {
+  description = "Whether to create the plain-Ubuntu profile_ec2 scratch instance."
   type        = bool
   default     = false
 }
