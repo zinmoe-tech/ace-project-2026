@@ -1,3 +1,12 @@
+### Why I got this error
+
+argocd app sync platform-namespaces --core
+{"level":"fatal","msg":"configmap \"argocd-cm\" not found","time":"2026-06-26T13:12:52+04:00"}
+
+#the reason is this command run in default name space. Thus, we need to declare namespace.
+
+kubectl config set-context --current --namespace=argocd
+
 The issues (there were 3 distinct ones)
 Issue 1 — configmap "argocd-cm" not found
 You ran argocd app sync ... --core. In --core mode there's no argocd-server; the CLI reads argocd-cm from your current kubeconfig namespace. Yours was default, so it looked in the wrong place. Recurs after every cluster rebuild because the namespace resets.

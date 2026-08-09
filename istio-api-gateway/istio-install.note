@@ -1,16 +1,16 @@
-Installation Steps for Istio 1.28
-1. Download Istio 1.28
-curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.28.0 sh -
+Installation Steps for Istio 1.29.2
+1. Download Istio 1.29.2
+curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.29.2 sh -
 
 2. ls -la
-    cd istio-1.28.0
+    cd istio-1.29.2
 
 3. Add istioctl to your PATH
 export PATH=$PWD/bin:$PATH
 
 
 To make this permanent:
-echo 'export PATH=$HOME/istio-1.27.0/bin:$PATH' >> ~/.bashrc
+echo 'export PATH=$HOME/istio-1.29.2/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 
 4. Verify istioctl version

@@ -67,6 +67,7 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable boundary-worker.service
 sudo systemctl start boundary-worker.service
+sudo systemctl restart boundary-worker.service
 sudo systemctl status boundary-worker.service
 
 # copy auth_request_token
