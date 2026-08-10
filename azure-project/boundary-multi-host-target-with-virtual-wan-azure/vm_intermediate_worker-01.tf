@@ -2,26 +2,8 @@
 # VM — intermediate-worker (UAE North, 172.20.15.0/24)
 # Standard_D2as_v7 (2 vCPU, 8 GiB), Azure Spot, no public IP. NSG rules come
 # from the subnet-level association in security_group_intermediate_worker.tf.
+# SSH key: data.azurerm_ssh_public_key.general, see ssh_key.tf.
 # -----------------------------------------------------------------------------
-
-# Key pairs already exist in Azure (created out-of-band, private halves held
-# locally under keys/) — looked up here rather than managed, so Terraform
-# never regenerates/replaces a key you already have the private half of.
-# One key per role — see SSH_KEYS.md.
-data "azurerm_ssh_public_key" "self_managed_worker" {
-  name                = "self-managed-worker-key"
-  resource_group_name = azurerm_resource_group.qatar_central.name
-}
-
-data "azurerm_ssh_public_key" "intermediate_worker" {
-  name                = "intermediate-worker-key"
-  resource_group_name = azurerm_resource_group.uae_north.name
-}
-
-data "azurerm_ssh_public_key" "targets" {
-  name                = "targets-key"
-  resource_group_name = azurerm_resource_group.central_india.name
-}
 
 resource "azurerm_network_interface" "intermediate_worker_01" {
   name                = "intermediate-worker-01-nic"
@@ -51,7 +33,7 @@ resource "azurerm_linux_virtual_machine" "intermediate_worker_01" {
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = data.azurerm_ssh_public_key.intermediate_worker.public_key
+    public_key = data.azurerm_ssh_public_key.general.public_key
   }
 
   # Azure Spot: evicted only on capacity, never on price (max_bid_price = -1

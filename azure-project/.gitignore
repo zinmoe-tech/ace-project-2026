@@ -1,2 +1,3 @@
 # SSH keypairs (private + public) — never commit key material
 **/keys/
+**/key/

@@ -2,8 +2,7 @@
 # VM — self-managed-worker-02 (Qatar Central, 192.168.99.0/24)
 # Same spec as intermediate-worker: Standard_D2as_v7 (2 vCPU, 8 GiB), Azure
 # Spot, ubuntu-24_04-lts. Unlike intermediate-worker, this one has a public
-# IP. Uses the same self_managed_worker key data source as -01 (see
-# vm_self_managed_worker-01.tf / vm_intermediate_worker-01.tf).
+# IP. SSH key: data.azurerm_ssh_public_key.general, see ssh_key.tf.
 # -----------------------------------------------------------------------------
 
 resource "azurerm_public_ip" "self_managed_worker_02" {
@@ -43,7 +42,7 @@ resource "azurerm_linux_virtual_machine" "self_managed_worker_02" {
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = data.azurerm_ssh_public_key.self_managed_worker.public_key
+    public_key = data.azurerm_ssh_public_key.general.public_key
   }
 
   # Azure Spot: evicted only on capacity, never on price (max_bid_price = -1

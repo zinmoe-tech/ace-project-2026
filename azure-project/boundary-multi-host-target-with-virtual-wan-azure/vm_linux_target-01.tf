@@ -1,9 +1,11 @@
 # -----------------------------------------------------------------------------
 # VM — linux_target_01 (Central India, 10.1.15.0/24)
-# Same spec as intermediate-worker: Standard_D2as_v7 (2 vCPU, 8 GiB), Azure
-# Spot, ubuntu-24_04-lts, no public IP. Uses its own targets key data source
-# (see vm_intermediate_worker-01.tf). NSG rules come from the
-# subnet-level association in security_group_central_india.tf (plus the
+# Same spec as intermediate-worker, except Standard_D2as_v7 doesn't exist in
+# Central India — used Standard_D2as_v6 instead (same 2 vCPU / 8 GiB AMD
+# D-series, one generation back). Azure Spot, ubuntu-24_04-lts, no public
+# IP. SSH key:
+# data.azurerm_ssh_public_key.general, see ssh_key.tf. NSG rules come from
+# the subnet-level association in security_group_central_india.tf (plus the
 # NIC-level association below).
 # -----------------------------------------------------------------------------
 
@@ -24,7 +26,7 @@ resource "azurerm_linux_virtual_machine" "linux_target_01" {
   name                = "linux-target-01"
   location            = azurerm_resource_group.central_india.location
   resource_group_name = azurerm_resource_group.central_india.name
-  size                = "Standard_D2as_v7"
+  size                = "Standard_D2as_v6"
   admin_username      = "azureuser"
 
   network_interface_ids = [
@@ -35,7 +37,7 @@ resource "azurerm_linux_virtual_machine" "linux_target_01" {
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = data.azurerm_ssh_public_key.targets.public_key
+    public_key = data.azurerm_ssh_public_key.general.public_key
   }
 
   # Azure Spot: evicted only on capacity, never on price (max_bid_price = -1

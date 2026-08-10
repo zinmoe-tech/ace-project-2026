@@ -44,6 +44,18 @@ resource "azurerm_network_security_group" "intermediate_worker_nsgp" {
     source_address_prefix      = "172.20.15.0/24"
     destination_address_prefix = "192.168.99.0/24"
   }
+
+  security_rule {
+    name                       = "ssh-inbound-from-bastion"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "10.169.169.0/24"
+    destination_address_prefix = "172.20.15.0/24"
+  }
 }
 
 resource "azurerm_subnet_network_security_group_association" "intermediate_worker" {

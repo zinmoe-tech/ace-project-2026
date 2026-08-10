@@ -2,7 +2,8 @@
 # VM — self-managed-worker-01 (Qatar Central, 192.168.99.0/24)
 # Same spec as intermediate-worker: Standard_D2as_v7 (2 vCPU, 8 GiB), Azure
 # Spot, ubuntu-24_04-lts. Unlike intermediate-worker, this one has a public
-# IP. NSG rules come from the subnet-level association in
+# IP. SSH key: data.azurerm_ssh_public_key.general, see ssh_key.tf. NSG
+# rules come from the subnet-level association in
 # security_group_self_managed_worker.tf (plus the NIC-level association
 # below).
 # -----------------------------------------------------------------------------
@@ -44,7 +45,7 @@ resource "azurerm_linux_virtual_machine" "self_managed_worker_01" {
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = data.azurerm_ssh_public_key.self_managed_worker.public_key
+    public_key = data.azurerm_ssh_public_key.general.public_key
   }
 
   # Azure Spot: evicted only on capacity, never on price (max_bid_price = -1
