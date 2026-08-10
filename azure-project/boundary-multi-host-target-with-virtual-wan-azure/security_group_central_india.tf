@@ -30,7 +30,7 @@ resource "azurerm_subnet_network_security_group_association" "central_india" {
 # Also attached directly to the target VM's NIC (redundant with the
 # subnet-level association above, same rules either way) so the NSG shows up
 # on the VM's own network interface in the portal, not just the subnet.
-resource "azurerm_network_interface_security_group_association" "linux_target_01" {
-  network_interface_id      = azurerm_network_interface.linux_target_01.id
-  network_security_group_id = azurerm_network_security_group.central_india_nsgp.id
-}
+# resource "azurerm_network_interface_security_group_association" "linux_target_01" {
+#   network_interface_id      = azurerm_network_interface.linux_target_01.id
+#   network_security_group_id = azurerm_network_security_group.central_india_nsgp.id
+# }

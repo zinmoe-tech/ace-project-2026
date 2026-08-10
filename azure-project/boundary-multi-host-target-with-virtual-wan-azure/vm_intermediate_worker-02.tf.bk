@@ -2,7 +2,7 @@
 # VM — intermediate-worker-02 (UAE North, 172.20.15.0/24)
 # Standard_D2as_v7 (2 vCPU, 8 GiB), Azure Spot, no public IP. NSG rules come
 # from the subnet-level association in security_group_intermediate_worker.tf.
-# Uses the same intermediate-remote-key data source as intermediate-worker-01
+# Uses the same intermediate_worker key data source as intermediate-worker-01
 # (see vm_intermediate_worker-01.tf).
 # -----------------------------------------------------------------------------
 
@@ -34,7 +34,7 @@ resource "azurerm_linux_virtual_machine" "intermediate_worker_02" {
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = data.azurerm_ssh_public_key.intermediate_remote.public_key
+    public_key = data.azurerm_ssh_public_key.intermediate_worker.public_key
   }
 
   # Azure Spot: evicted only on capacity, never on price (max_bid_price = -1

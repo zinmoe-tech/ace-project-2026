@@ -54,12 +54,12 @@ resource "azurerm_subnet_network_security_group_association" "intermediate_worke
 # Also attached directly to each worker's NIC (redundant with the
 # subnet-level association above, same rules either way) so the NSG shows up
 # on the VM's own network interface in the portal, not just the subnet.
-resource "azurerm_network_interface_security_group_association" "intermediate_worker_01" {
-  network_interface_id      = azurerm_network_interface.intermediate_worker_01.id
-  network_security_group_id = azurerm_network_security_group.intermediate_worker_nsgp.id
-}
+# resource "azurerm_network_interface_security_group_association" "intermediate_worker_01" {
+#   network_interface_id      = azurerm_network_interface.intermediate_worker_01.id
+#   network_security_group_id = azurerm_network_security_group.intermediate_worker_nsgp.id
+# }
 
-resource "azurerm_network_interface_security_group_association" "intermediate_worker_02" {
-  network_interface_id      = azurerm_network_interface.intermediate_worker_02.id
-  network_security_group_id = azurerm_network_security_group.intermediate_worker_nsgp.id
-}
+# resource "azurerm_network_interface_security_group_association" "intermediate_worker_02" {
+#   network_interface_id      = azurerm_network_interface.intermediate_worker_02.id
+#   network_security_group_id = azurerm_network_security_group.intermediate_worker_nsgp.id
+# }
