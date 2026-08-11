@@ -17,6 +17,11 @@ resource "azurerm_resource_group" "central_india" {
   location = "Central India"
 }
 
+resource "azurerm_resource_group" "virtual_wan" {
+  name     = "virtual-wan-rsg"
+  location = "UAE North"
+}
+
 # resource "azurerm_resource_group" "central_israel" {
 #   name     = "boundary-resource-central-israel"
 #   location = "Israel Central"
