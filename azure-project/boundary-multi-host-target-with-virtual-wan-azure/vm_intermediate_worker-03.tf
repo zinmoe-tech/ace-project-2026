@@ -1,37 +1,36 @@
 # -----------------------------------------------------------------------------
-# VM — intermediate-worker-01 (Southeast Asia, 10.1.100.0/24)
-# Paired with self-managed-worker-01 in the same region/subnet (see
-# vm_self_managed_worker-01.tf). Standard_D2as_v6, same size and zone
-# pin (zone 3) as self-managed-worker-01 — see that file's comment for
-# why. Both VMs on Spot means this region's two VMs total 4 vCPU against
-# a 3-vCPU Low-priority quota — a quota increase is required before this
+# VM — intermediate-worker-03 (Japan East, 10.3.100.0/24)
+# Paired with self-managed-worker-03 in the same region/subnet (see
+# vm_self_managed_worker-03.tf). Standard_D2as_v6 (2 vCPU), same size as
+# self-managed-worker-03 — used uniformly across every VM in this config.
+# Both VMs on Spot means this region's two VMs total 4 vCPU against a
+# 3-vCPU Low-priority quota — a quota increase is required before this
 # applies cleanly. No public IP. SSH key:
 # data.azurerm_ssh_public_key.general, see ssh_key.tf.
 # -----------------------------------------------------------------------------
 
-resource "azurerm_network_interface" "intermediate_worker_01" {
-  name                = "intermediate-worker-01-nic"
-  location            = azurerm_resource_group.southeast_asia.location
-  resource_group_name = azurerm_resource_group.southeast_asia.name
+resource "azurerm_network_interface" "intermediate_worker_03" {
+  name                = "intermediate-worker-03-nic"
+  location            = azurerm_resource_group.japan_east.location
+  resource_group_name = azurerm_resource_group.japan_east.name
 
   ip_configuration {
     name                          = "internal"
-    subnet_id                     = azurerm_subnet.self_managed_subnet.id
+    subnet_id                     = azurerm_subnet.japan_east_subnet.id
     private_ip_address_allocation = "Static"
-    private_ip_address            = "10.1.100.5"
+    private_ip_address            = "10.3.100.5"
   }
 }
 
-resource "azurerm_linux_virtual_machine" "intermediate_worker_01" {
-  name                = "intermediate-worker-01"
-  location            = azurerm_resource_group.southeast_asia.location
-  resource_group_name = azurerm_resource_group.southeast_asia.name
+resource "azurerm_linux_virtual_machine" "intermediate_worker_03" {
+  name                = "intermediate-worker-03"
+  location            = azurerm_resource_group.japan_east.location
+  resource_group_name = azurerm_resource_group.japan_east.name
   size                = "Standard_D2as_v6"
   admin_username      = "azureuser"
-  zone                = "3"
 
   network_interface_ids = [
-    azurerm_network_interface.intermediate_worker_01.id,
+    azurerm_network_interface.intermediate_worker_03.id,
   ]
 
   disable_password_authentication   = true

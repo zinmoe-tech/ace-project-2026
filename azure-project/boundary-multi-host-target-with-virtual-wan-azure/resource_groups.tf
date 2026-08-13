@@ -1,25 +1,25 @@
 # -----------------------------------------------------------------------------
-# Resource Groups — Qatar Central, UAE North, Central India
+# Resource Groups — Southeast Asia, Korea Central, Japan East
 # -----------------------------------------------------------------------------
 
-resource "azurerm_resource_group" "qatar_central" {
-  name     = "boundary-self-managed-worker-rg"
-  location = "Qatar Central"
+resource "azurerm_resource_group" "southeast_asia" {
+  name     = "boundary-resource-southeast-asia"
+  location = "Southeast Asia"
 }
 
-resource "azurerm_resource_group" "uae_north" {
-  name     = "boundary-resource-uae-north"
-  location = "UAE North"
+resource "azurerm_resource_group" "korea_central" {
+  name     = "boundary-resource-korea-central"
+  location = "Korea Central"
 }
 
-resource "azurerm_resource_group" "central_india" {
-  name     = "boundary-resource-central-india"
-  location = "Central India"
+resource "azurerm_resource_group" "japan_east" {
+  name     = "boundary-resource-japan-east"
+  location = "Japan East"
 }
 
 resource "azurerm_resource_group" "virtual_wan" {
   name     = "virtual-wan-rsg"
-  location = "UAE North"
+  location = "Korea Central"
 }
 
 # resource "azurerm_resource_group" "central_israel" {
