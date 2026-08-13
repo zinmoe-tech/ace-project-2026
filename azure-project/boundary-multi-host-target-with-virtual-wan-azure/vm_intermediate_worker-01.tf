@@ -3,6 +3,9 @@
 # Standard_D2as_v7 (2 vCPU, 8 GiB), Azure Spot, no public IP. NSG rules come
 # from the subnet-level association in security_group_intermediate_worker.tf.
 # SSH key: data.azurerm_ssh_public_key.general, see ssh_key.tf.
+#
+# Harmless drift: vm_agent_platform_updates_enabled shows true -> false on
+# every plan (Azure VM Agent auto-upgrade setting, unset here).
 # -----------------------------------------------------------------------------
 
 resource "azurerm_network_interface" "intermediate_worker_01" {

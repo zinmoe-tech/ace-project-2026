@@ -6,6 +6,9 @@
 # uses 2) without requesting a quota increase.
 # SSH key: data.azurerm_ssh_public_key.general, see ssh_key.tf. NSG rules
 # come from the subnet-level association in security_group_bastion.tf.
+#
+# Harmless drift: vm_agent_platform_updates_enabled shows true -> false on
+# every plan (Azure VM Agent auto-upgrade setting, unset here).
 # -----------------------------------------------------------------------------
 
 resource "azurerm_public_ip" "bastion" {
