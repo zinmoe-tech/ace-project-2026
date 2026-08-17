@@ -11,3 +11,10 @@ data "azurerm_ssh_public_key" "general" {
   name                = "general-key"
   resource_group_name = azurerm_resource_group.korea_central.name
 }
+
+# Dedicated key for the linux-target VM — private half in key/linux_key,
+# public half registered in Azure as linux-key (linux-target-rsg).
+data "azurerm_ssh_public_key" "linux_target" {
+  name                = "linux-key"
+  resource_group_name = azurerm_resource_group.linux_target.name
+}

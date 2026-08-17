@@ -22,7 +22,7 @@ resource "azurerm_resource_group" "virtual_wan" {
   location = "Korea Central"
 }
 
-# resource "azurerm_resource_group" "central_israel" {
-#   name     = "boundary-resource-central-israel"
-#   location = "Israel Central"
-# }
+resource "azurerm_resource_group" "linux_target" {
+  name     = "linux-target-rsg"
+  location = "UAE North"
+}
