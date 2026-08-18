@@ -43,8 +43,8 @@ Export directly from that output (don't write these down anywhere):
 
 ```bash
 export TF_VAR_azure_tenant_id="<tenant>"
-export TF_VAR_azure_sp_vm3_client_id="<appId>"
-export TF_VAR_azure_sp_vm3_client_secret="<password>"
+export TF_VAR_azure_sp_linux_target_03_client_id="<appId>"
+export TF_VAR_azure_sp_linux_target_03_client_secret="<password>"
 ```
 
 ## 3. Create the vm-04 service principal (same role/scope, different identity)
@@ -57,8 +57,8 @@ az ad sp create-for-rbac \
 ```
 
 ```bash
-export TF_VAR_azure_sp_vm4_client_id="<appId>"
-export TF_VAR_azure_sp_vm4_client_secret="<password>"
+export TF_VAR_azure_sp_linux_target_04_client_id="<appId>"
+export TF_VAR_azure_sp_linux_target_04_client_secret="<password>"
 ```
 
 (`tenant` will be the same value as step 2 — no need to re-export

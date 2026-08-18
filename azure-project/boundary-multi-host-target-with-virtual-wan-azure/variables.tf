@@ -27,20 +27,20 @@ variable "azure_subscription_id" {
   default = "8d155826-e421-4063-91f2-23ddd65102f1"
 }
 
-variable "azure_sp_vm3_client_id" {
+variable "azure_sp_client_id" {
   type = string
 }
 
-variable "azure_sp_vm3_client_secret" {
+variable "azure_sp_client_secret" {
   type      = string
   sensitive = true
 }
 
-variable "azure_sp_vm4_client_id" {
+variable "azure_sp_linux_target_04_client_id" {
   type = string
 }
 
-variable "azure_sp_vm4_client_secret" {
+variable "azure_sp_linux_target_04_client_secret" {
   type      = string
   sensitive = true
 }

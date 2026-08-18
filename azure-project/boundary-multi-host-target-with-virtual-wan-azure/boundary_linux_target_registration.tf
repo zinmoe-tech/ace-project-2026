@@ -91,8 +91,9 @@ resource "boundary_target" "linux_target_02_ssh" {
 # ---------------------------------------------------------------------------
 # linux-target-03 — Azure dynamic discovery, credential rotation DISABLED.
 # Boundary will not touch the service principal's secret in Azure AD; the
-# value in var.azure_sp_vm3_client_secret stays authoritative until
-# rotated manually.
+# value in var.azure_sp_client_secret stays authoritative until rotated
+# manually. Same variable the fleet catalog reuses — see
+# boundary_linux_target_fleet.tf.
 # ---------------------------------------------------------------------------
 resource "boundary_host_catalog_plugin" "linux_targets_03_dynamic" {
   name        = "linux-targets-03-azure-dynamic"
@@ -104,11 +105,11 @@ resource "boundary_host_catalog_plugin" "linux_targets_03_dynamic" {
     disable_credential_rotation = true
     tenant_id                   = var.azure_tenant_id
     subscription_id             = var.azure_subscription_id
-    client_id                   = var.azure_sp_vm3_client_id
+    client_id                   = var.azure_sp_client_id
   })
 
   secrets_json = jsonencode({
-    secret_value = var.azure_sp_vm3_client_secret
+    secret_value = var.azure_sp_client_secret
   })
 }
 
@@ -144,7 +145,8 @@ resource "boundary_target" "linux_target_03_ssh" {
 # linux-target-04 — Azure dynamic discovery, credential rotation ENABLED.
 # Boundary takes ownership of this service principal's secret as soon as
 # this catalog is created and rotates it periodically — it must be its
-# own service principal (var.azure_sp_vm4_*), never shared with vm-03's.
+# own service principal (var.azure_sp_linux_target_04_*), never shared with
+# linux-target-03's.
 # ---------------------------------------------------------------------------
 resource "boundary_host_catalog_plugin" "linux_targets_04_dynamic" {
   name        = "linux-targets-04-azure-dynamic"
@@ -156,11 +158,11 @@ resource "boundary_host_catalog_plugin" "linux_targets_04_dynamic" {
     disable_credential_rotation = false
     tenant_id                   = var.azure_tenant_id
     subscription_id             = var.azure_subscription_id
-    client_id                   = var.azure_sp_vm4_client_id
+    client_id                   = var.azure_sp_linux_target_04_client_id
   })
 
   secrets_json = jsonencode({
-    secret_value = var.azure_sp_vm4_client_secret
+    secret_value = var.azure_sp_linux_target_04_client_secret
   })
 }
 

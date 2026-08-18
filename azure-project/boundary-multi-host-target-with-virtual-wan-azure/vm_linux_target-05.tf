@@ -1,0 +1,119 @@
+# VM — linux-target-05 (UAE North)
+#
+# Unlike linux-target-01..04, this one gets no dedicated Boundary catalog
+# in this repo at all — it's tagged for the shared fleet catalog instead
+# (boundary_linux_target_fleet.tf). No new boundary_host_catalog_plugin /
+# boundary_host_set_plugin / boundary_target needed: Boundary picks this
+# VM up on its next scheduled poll of the fleet host set, purely because
+# of the tag below.
+
+# No public IP: only reachable from the intermediate workers (see NSG below).
+resource "azurerm_network_interface" "linux_target_05" {
+  name                = "linux-target-05-nic"
+  location            = azurerm_resource_group.linux_target.location
+  resource_group_name = azurerm_resource_group.linux_target.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.linux_target_subnet.id
+    private_ip_address_allocation = "Static"
+    private_ip_address            = "172.20.10.8"
+  }
+}
+
+# ssh access from intermediate workers only
+resource "azurerm_network_security_group" "linux_target_05" {
+  name                = "linux-target-05-nsg"
+  location            = azurerm_resource_group.linux_target.location
+  resource_group_name = azurerm_resource_group.linux_target.name
+
+  security_rule {
+    name                       = "ssh-inbound-from-intermediate-workers"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefixes    = ["10.1.100.5", "10.2.100.5", "10.3.100.5"]
+    destination_address_prefix = "*"
+  }
+
+  # icmp
+  security_rule {
+    name                       = "icmp-inbound"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Icmp"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  # icmp
+  security_rule {
+    name                       = "icmp-outbound"
+    priority                   = 120
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Icmp"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_network_interface_security_group_association" "linux_target_05" {
+  network_interface_id      = azurerm_network_interface.linux_target_05.id
+  network_security_group_id = azurerm_network_security_group.linux_target_05.id
+}
+
+# Standard_F1als_v7 (1 vCPU, 2 GiB): same SKU as linux-target-01..04 — the
+# cheapest unrestricted size in this subscription/region — but regular
+# (non-Spot) priority. UAE North's LowPriority quota is fully exhausted
+# (3/3, used by 01/02/03) with zero headroom for a VM of any size, so
+# Spot isn't available here at all right now. Regular vCPU quota has room
+# (0/4). Not as cheap as Spot would be, but it's the lowest-cost option
+# that actually deploys without waiting on the quota increase — switch
+# back to Spot once that's approved, if it matters here.
+resource "azurerm_linux_virtual_machine" "linux_target_05" {
+  name                = "linux-target-05"
+  location            = azurerm_resource_group.linux_target.location
+  resource_group_name = azurerm_resource_group.linux_target.name
+  size                = "Standard_F1als_v7"
+  admin_username      = "azureuser"
+
+  network_interface_ids = [
+    azurerm_network_interface.linux_target_05.id,
+  ]
+
+  disable_password_authentication   = true
+  vm_agent_platform_updates_enabled = false
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = data.azurerm_ssh_public_key.linux_target.public_key
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "ubuntu-24_04-lts"
+    sku       = "server"
+    version   = "latest"
+  }
+
+  # Discovery tag for the shared fleet catalog — see
+  # boundary_linux_target_fleet.tf. Not boundary_dynamic_target (that's
+  # the narrow per-VM tag used by linux-target-03/04's own catalogs).
+  tags = {
+    boundary_fleet = "linux-target"
+  }
+}
