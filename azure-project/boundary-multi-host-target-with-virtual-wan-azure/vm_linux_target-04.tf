@@ -65,8 +65,11 @@ resource "azurerm_network_interface_security_group_association" "linux_target_04
 }
 
 # Standard_F1als_v7 (1 vCPU, 2 GiB): cheapest unrestricted SKU for this
-# subscription in UAE North, same as linux-target-01/02/03. Spot: UAE North's
-# LowPriority quota has room (3 vCPU used by target-01/02/03's Spot instances).
+# subscription in UAE North, same as linux-target-01/02/03. Regular
+# (non-Spot) priority: UAE North's LowPriority quota is fully exhausted
+# (3/3, used by 01/02/03) with zero headroom, same constraint that put
+# linux-target-05/06 on regular priority too. Switch back to Spot once a
+# quota increase is approved, if it matters here.
 resource "azurerm_linux_virtual_machine" "linux_target_04" {
   name                = "linux-target-04"
   location            = azurerm_resource_group.linux_target.location
@@ -80,10 +83,6 @@ resource "azurerm_linux_virtual_machine" "linux_target_04" {
 
   disable_password_authentication   = true
   vm_agent_platform_updates_enabled = false
-
-  priority        = "Spot"
-  eviction_policy = "Deallocate"
-  max_bid_price   = -1
 
   admin_ssh_key {
     username   = "azureuser"
