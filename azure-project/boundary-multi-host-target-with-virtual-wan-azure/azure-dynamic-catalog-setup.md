@@ -28,7 +28,6 @@ az ad sp create-for-rbac \
   --scopes /subscriptions/8d155826-e421-4063-91f2-23ddd65102f1/resourceGroups/linux-target-rsg
 ```
 
-# other way
 
 SP_OUTPUT=$(az ad sp create-for-rbac \
   --name "boundary-linux-target-fleet-discovery" \
