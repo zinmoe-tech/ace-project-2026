@@ -3,6 +3,9 @@
 Multi-hop Boundary session brokering across four Azure regions, where the
 target subnet can reach exactly three IP addresses and nothing else.
 
+**Architecture diagram:**
+<https://app.excalidraw.com/l/9zPQ6SMkB6W/8o3l0R6PbJS>
+
 > **No identifiers in this document.** Cluster IDs, scope IDs, tenant and
 > subscription IDs, service principal IDs and every secret are referenced as
 > placeholders. Real values live in `terraform.tfvars` (gitignored) or in
@@ -186,6 +189,9 @@ private network and the user never receives it.
 ---
 
 ## 3. The path of one session
+
+Full architecture drawing:
+<https://app.excalidraw.com/l/9zPQ6SMkB6W/8o3l0R6PbJS>
 
 ```
                     ┌──────────────────────────────┐
