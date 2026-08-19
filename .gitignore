@@ -17,3 +17,7 @@ id_rsa.pub
 
 # local-only secret, never commit
 k8s-idp/reset password
+
+# Vault root token + unseal keys — NEVER commit
+vault-init.json
+**/vault-init.json

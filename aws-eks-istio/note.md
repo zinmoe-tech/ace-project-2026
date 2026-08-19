@@ -29,3 +29,6 @@ These IPs are AWS-managed and can change (the NLB replaces nodes on scaling/fail
 For grc.ky-cloud.click, create a CNAME → the NLB hostname (not an A record to these IPs), so DNS keeps following the NLB if the IPs change.
 If you ever need stable IPs (e.g., for a firewall allowlist), that requires assigning Elastic IPs to the NLB — which means recreating it with the aws-load-balancer-eip-allocations annotation.
 Want me to add the grc.ky-cloud.click CNAME guidance to the README, or help set up the DNS record?
+
+kubectl -n grc-ingress logs deploy/grc-istio-ingressgateway | grep grc.ky-cloud.click
+[2026-06-23T10:18:22.450Z] "GET / HTTP/2" 200 - via_upstream - "-" 0 1603 17 17 "10.0.23.110,10.0.33.0" "curl/8.10.1" "a8cce042-6698-47e7-910f-971ebee8c719" "grc.ky-cloud.click" "10.0.41.208:9091" outbound|6061||fraud-svc.grc-ns.svc.cluster.local 10.0.37.245:45106 10.0.37.245:8080 10.0.33.0:44540 - -
