@@ -386,9 +386,14 @@ alternative is one shared tag value, one set, one target: genuine zero-touch
 growth, at the cost of a single target that lands on any tagged machine.
 
 **Precision per machine, or zero-touch growth. Not both.**
-`fleet-auto-register.sh` splits the difference — it creates a dedicated
-target per discovered host, because Boundary syncs hosts automatically but
-never creates targets on its own.
+
+The gap between them is worth naming: Boundary's dynamic catalogs sync
+**hosts** into a host set automatically, but they never create **targets**.
+A target encodes session policy — worker filters, injected credentials,
+connection limits — and nothing in the plugin model turns "a host appeared"
+into "create a target for it". Fully automatic onboarding therefore needs
+either a broad shared host set feeding one pre-existing target, or an
+external step that creates the per-VM target.
 
 ---
 
@@ -458,6 +463,10 @@ picks blind — a dead host in the set is still a candidate.
 
 ## 10. File map
 
+Terraform lives at the project root; every document lives in `all-notes/`.
+
+### Terraform
+
 | File | Contains |
 |---|---|
 | `providers.tf` | azurerm ~> 3.0, boundary ~> 1.1, HCP address + auth method |
@@ -473,12 +482,16 @@ picks blind — a dead host in the set is still a candidate.
 | `boundary_credentials.tf` | credential store + SSH key credential |
 | `boundary_linux_target_static_registration.tf` | catalog/host/set/target for 01–02 |
 | `boundary_linux_target_dynamic_registration.tf` | plugin catalog, two filtered sets, two targets |
-| `fleet-auto-register.sh` | creates a dedicated target per discovered host |
+
+### Documents — `all-notes/`
+
+| File | Contains |
+|---|---|
+| `PROJECT_NOTE.md` | this document |
 | `SSH_KEYS.md` | shared-key rationale, RSA requirement, rotation |
 | `azure-dynamic-catalog-setup.md` | service principal creation runbook |
 | `intermediate-boundary-config.md` | worker HCL + systemd unit |
 | `BOUNDARY_TARGET_REGISTRATION.md` | original registration walkthrough |
-| `Note.md` | branch-to-branch clarification |
 
 `keys/`, `key/`, `*.tfvars`, `terraform.tfstate*` and `.terraform/` are
 gitignored. No key material or secret is tracked.
