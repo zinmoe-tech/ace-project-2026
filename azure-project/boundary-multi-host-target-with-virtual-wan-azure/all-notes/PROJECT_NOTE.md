@@ -33,126 +33,155 @@ both models.
 
 ---
 
-## 2. Why these technologies
+## 2. Why these four decisions
 
-Each choice below solves a specific problem. Recorded here so a future
-reader can tell which parts are load-bearing and which are incidental.
+Four choices carry this design. Each is stated as the problem it solves, the
+solution adopted, and why the obvious alternative was not enough.
 
-### Boundary — instead of VPN + distributed SSH keys
+### 2.1 Host catalog — instead of an address on the target
 
-**Problem.** Giving an engineer SSH access to a private VM conventionally
-means putting them on a VPN and handing them a private key. The VPN grants
-network reach to everything the route table allows, not just the one host
-they need. The key, once copied, cannot be un-copied — rotation means
-touching every holder, and a leaked key is indistinguishable from a
-legitimate one.
+**Problem.** A Boundary target can carry an `address` field directly, which
+is the shortest path to a working session:
 
-**Solution.** Boundary brokers each session individually. The user
-authenticates to Boundary, is authorised for one target, and gets a proxied
-connection. They never join the network and never hold the key. Revoking
-access is a role change, not a key rotation.
+```hcl
+resource "boundary_target" "quick" {
+  address      = "172.20.10.4"
+  default_port = 22
+}
+```
 
-**Rejected alternative.** Azure Bastion covers the same ground for a single
-VNet, but it terminates in the VNet it is deployed to, has no concept of
-cross-region worker chaining, and does not solve credential injection.
+It works, and it is a dead end. That address is typed by hand, so it drifts
+the moment the VM is rebuilt with a different IP. It belongs to one target,
+so nothing else can reuse it. It cannot be discovered, cannot be grouped
+with other machines, and cannot be updated from a single place. A target
+with a direct address also cannot use host sources at all — the two are
+mutually exclusive.
 
-### Multi-hop workers — instead of one worker tier
+**Solution.** Route every target through the catalog chain, so that *where a
+machine is* and *how to connect to it* are stored separately:
+
+```
+host catalog  ──▶  host  ──▶  host set  ──▶  target
+"where do        "where     "who is in     "how do I
+ definitions      is the     this group?"   connect?"
+ come from?"      machine?"
+```
+
+The payoff is that each layer can change without touching the others. A
+machine's IP changes — only the host record moves. Access policy changes —
+only the target changes. A whole class of machines needs discovering rather
+than listing — only the catalog changes. None of that is expressible when
+the address is a literal on the target.
+
+**Why it matters here specifically.** The host record reads
+`azurerm_network_interface.…private_ip_address` directly from the Azure
+resource, so the Boundary host and the Azure NIC cannot disagree. A typed
+address would drift silently and surface later as a session timeout with no
+obvious cause.
+
+### 2.2 Virtual WAN — instead of VNet peering
+
+**Problem.** Four VNets across four regions. Full-mesh peering needs
+`n(n−1)/2` = six links, each configured from both ends, and the count grows
+quadratically with every VNet added. Worse, peering carries no routing
+policy: a peered VNet either sees its neighbour or it does not. There is
+nowhere to express *"these three may talk to each other freely, that fourth
+may reach three specific hosts and nothing else."*
+
+**Solution.** A managed transit hub where every VNet connects once and
+routing policy lives in **route tables** rather than in the links. Because
+each connection independently chooses which table it reads and which tables
+it advertises into, different spokes can be given genuinely different views
+of the same network.
+
+That is the mechanism the entire isolation model rests on:
+
+- the three worker VNets read `global-v-net-connection-rtb` and see everything
+- the target VNet reads `linux-target-rtb` and sees three `/32` host routes
+- the target VNet still *advertises into* the workers' table, so workers can
+  reach it
+
+One-way reachability, out of two settings that look symmetrical. Peering
+cannot express it at all.
+
+**Why not the alternatives.** Hub-and-spoke with a network virtual appliance
+would give the same control, but means running, patching and paying for a
+firewall VM. Azure Route Server plus custom UDRs would also work, but puts
+the policy in per-subnet route tables that a subnet owner can edit. Virtual
+WAN keeps it in the hub, where an individual VM has no influence over it.
+
+### 2.3 Three self-managed workers — instead of one
+
+**Problem.** The self-managed workers are the only publicly reachable part
+of this system: clients dial them on 9202 directly. A single one would mean
+every session in every region funnels through one VM in one Azure region —
+one reboot, one eviction, or one regional incident takes all access away,
+and a user far from that region pays the latency on every packet.
+
+There is a second, less obvious failure: the intermediate workers connect
+*upstream* to this tier. With one self-managed worker, losing it does not
+just block new sessions — it disconnects every intermediate worker from the
+control plane at once.
+
+**Solution.** Three, one per region, all carrying the same ingress tag so a
+single filter matches all of them:
+
+```
+ingress_worker_filter = "\"ingress-worker\" in \"/tags/type\""
+```
+
+Boundary spreads sessions across every worker that satisfies the filter, so
+this gives distribution and redundancy from the same configuration. Any two
+can be down and access still works.
+
+Each intermediate worker then lists **all three** as upstreams, so it stays
+registered while any one survives:
+
+```hcl
+initial_upstreams = [ "10.1.100.4:9202", "10.2.100.4:9202", "10.3.100.4:9202" ]
+```
+
+**The part that is easy to get wrong.** This only works because the filter
+matches a *class* rather than a name. Writing `"/name" == "self-managed-worker-01"`
+would leave the other two running, healthy, and never selected — a single
+point of failure disguised as a three-node tier.
+
+### 2.4 Intermediate workers — instead of connecting to targets directly
 
 **Problem.** The target VNet must accept no inbound connection from the
 internet. But HCP Boundary's control plane runs outside Azure and cannot
-reach a private VNet, so something inside has to bridge the two — and if
-that something listens for inbound connections, the private network has an
-open door again.
+reach a private VNet, so something inside the network has to bridge the two.
+If that something *listens* for inbound connections, the private network has
+an open door again — and the self-managed workers cannot do the job either,
+because they are the publicly exposed tier, and giving them a route into the
+target subnet would put a path from the internet one hop away from the
+targets.
 
-**Solution.** Two worker tiers. The **self-managed workers** hold public IPs
-and accept client connections on 9202. The **intermediate workers** are
-private, listen to nobody, and dial *outbound* to the self-managed tier,
-holding a reverse tunnel open. Traffic reaches the private network over a
-connection that the private side initiated.
+**Solution.** A second worker tier that is private, listens to nobody, and
+dials **outbound** to the self-managed workers, holding a reverse tunnel
+open. Session traffic then reaches the private network over a connection the
+private side initiated.
 
-This is why `intermediate-worker-0N-nsg` has no 9202 inbound rule at all —
-not an oversight, the entire point.
+```
+client ──▶ self-managed worker ◀── intermediate worker ──▶ target
+           public, listens 9202     private, dials out       :22
+                                    NEVER listens
+```
 
-### Virtual WAN — instead of VNet peering
+This is why `intermediate-worker-0N-nsg` has **no 9202 inbound rule at all**
+— not an oversight, the entire point of the tier.
 
-**Problem.** Four VNets in four regions. Full-mesh peering needs
-`n(n−1)/2` = six links, each configured twice, and grows quadratically.
-Worse, peering gives no per-spoke routing policy: a peered VNet either sees
-its neighbour or it does not, and there is no place to express "these three
-may talk to each other, that fourth may only reach three specific hosts".
+**What it buys beyond reachability.** Because the intermediate workers are
+the only machines that ever touch the targets, the target's exposure can be
+written as a list of exactly three addresses — in the hub route table *and*
+in the target NSG. Both lists name the same three IPs. Without a separate
+egress tier there would be no such short list to write: the targets would
+have to accept connections from whatever machine happened to be brokering,
+and the isolation model would have nothing precise to point at.
 
-**Solution.** A managed transit hub where every VNet connects once, and
-routing policy lives in **route tables** rather than in the links.
-Different connections can read different tables — which is the mechanism the
-whole isolation model depends on.
-
-**Rejected alternative.** Hub-and-spoke with a network virtual appliance
-gives the same control, but means running, patching, and paying for a
-firewall VM. Virtual WAN's route tables were sufficient without one.
-
-### Two route tables and `/32` routes — instead of NSGs alone
-
-**Problem.** NSGs are attached per-NIC and are trivially edited on a single
-VM. A single wrong rule on one target would silently open a path from the
-self-managed workers or the bastion. Relying on NSGs alone means the
-isolation is exactly as strong as the least carefully reviewed VM.
-
-**Solution.** Enforce it a second time at the routing layer, where an
-individual VM cannot influence it. `linux-target-rtb` contains three `/32`
-routes and nothing else, so even a wide-open NSG on a target leaves the
-packet with nowhere to go.
-
-`/32` rather than `/24` matters because the intermediate workers share a
-subnet with the self-managed workers and the bastion. Propagation cannot
-express that distinction — it advertises a VNet's whole address space — so
-host-granular reachability is only achievable with hand-written static
-routes. That is why this one table is static while the other is entirely
-propagated.
-
-### Injected credentials — instead of brokered ones
-
-**Problem.** Even with Boundary in the path, handing the user the key at
-session start puts the secret on their machine.
-
-**Solution.** `injected_application_credential_source_ids` applies the key
-at the egress worker. The user's SSH client authenticates to Boundary, not
-to the host. The key never leaves the control plane and the worker.
-
-This requires the target to be type `ssh` rather than `tcp` — a `tcp`
-target cannot inject, only broker.
-
-### Terraform across both providers — instead of clicking
-
-**Problem.** This estate spans two systems that must agree: an Azure NIC
-holds an address, and a Boundary host record points at that same address.
-Built by hand, the two drift the moment anything is rebuilt, and the failure
-surfaces as a session timeout with no obvious cause.
-
-**Solution.** One `terraform apply` covering `azurerm` and `boundary`
-together, with the Boundary host reading
-`azurerm_network_interface.…private_ip_address` directly rather than a typed
-copy. The two cannot disagree.
-
-### Static *and* dynamic catalogs — because neither alone is right
-
-**Problem.** Hand-written host addresses go stale silently. Full tag-based
-discovery fixes that but, with one broad filter, produces a single target
-that lands on any matching machine — losing per-machine access control.
-
-**Solution.** Run both, chosen per target, and use a *unique tag value per
-VM* on the dynamic side so discovery keeps addresses fresh without
-collapsing four machines into one target. Section 8 covers the trade-off in
-full.
-
-### Bastion — because the workers deliberately cannot reach anything
-
-**Problem.** Both worker classes end with `deny-all-other-outbound`. That is
-correct for their role, and it also means no package updates, no
-troubleshooting from the box itself, and no easy way in.
-
-**Solution.** One jump box in Southeast Asia with open TCP egress, used for
-administration only. It is deliberately excluded from `linux-target-rtb`, so
-having it changes nothing about what can reach the targets.
+They are also where credentials land. `injected_application_credential_source_ids`
+applies the SSH key at the egress worker, so the key stays inside the
+private network and the user never receives it.
 
 ---
 
@@ -357,13 +386,83 @@ host catalog  ──▶  host  ──▶  host set  ──▶  target
 **A target accepts host *sets*, never hosts.** The argument is
 `host_source_ids`, and a host ID will not be accepted there.
 
-### Static vs dynamic
+### The two catalog types
+
+A host catalog answers exactly one question: **who maintains the list of
+hosts?** That is the whole difference between the two types. Everything
+below the catalog — hosts, sets, targets — keeps the same shape either way.
+
+#### Static catalog — you maintain the list
+
+The catalog itself holds nothing but a scope. Hosts are resources you write,
+and a set names them explicitly.
+
+```hcl
+resource "boundary_host_catalog_static" "static_host_catalog" {
+  scope_id = var.boundary_project_scope_id
+}
+
+resource "boundary_host_static" "linux_target_01" {
+  host_catalog_id = boundary_host_catalog_static.static_host_catalog.id
+  address         = azurerm_network_interface.linux_target_01.private_ip_address
+}
+
+resource "boundary_host_set_static" "linux_targets_01" {
+  host_catalog_id = boundary_host_catalog_static.static_host_catalog.id
+  host_ids        = [boundary_host_static.linux_target_01.id]
+}
+```
+
+Membership is a literal list. Nothing re-evaluates it until the next
+`terraform apply`.
+
+#### Dynamic (plugin) catalog — Azure maintains the list
+
+The catalog holds the credentials needed to query Azure. There are **no
+host resources at all** — `boundary_host_set_plugin` has no `host_ids`
+argument, and will not accept one. The set carries a *filter*, and Boundary
+creates, updates and removes host records itself.
+
+```hcl
+resource "boundary_host_catalog_plugin" "dynamic-host-catalog" {
+  scope_id    = var.boundary_project_scope_id
+  plugin_name = "azure"
+
+  attributes_json = jsonencode({
+    disable_credential_rotation = true
+    tenant_id                   = var.azure_tenant_id
+    subscription_id             = var.azure_subscription_id
+    client_id                   = var.azure_sp_client_id
+  })
+  secrets_json = jsonencode({ secret_value = var.azure_sp_client_secret })
+}
+
+resource "boundary_host_set_plugin" "linux_target_03_host_set" {
+  host_catalog_id = boundary_host_catalog_plugin.dynamic-host-catalog.id
+
+  attributes_json = jsonencode({
+    filter = "tagName eq 'boundary_dynamic_target' and tagValue eq 'linux-target-03'"
+  })
+}
+```
+
+Registration has moved out of Terraform's Boundary resources and into the
+**Azure tag** on the VM:
+
+```hcl
+tags = { boundary_dynamic_target = "linux-target-04" }
+```
+
+Tag a VM and it appears in the set. Remove the tag, or the VM, and it drops
+out. Boundary is never told directly.
+
+#### Side by side
 
 | | Static — targets 01, 02 | Dynamic — targets 03, 04 |
 |---|---|---|
 | Resource | `boundary_host_catalog_static` | `boundary_host_catalog_plugin` (azure) |
 | Catalog holds | nothing but a scope | tenant, subscription, client ID + secret |
-| Host records | you write the IP by hand | Boundary creates them from the Azure API |
+| Host records | you write them | Boundary creates them from the Azure API |
 | Set membership | `host_ids = [hst_…]` | `filter = "tagName eq … and tagValue eq …"` |
 | Re-evaluated | only on `terraform apply` | on a background sync interval |
 | IP change | silently stale until you edit | picked up automatically |
@@ -371,11 +470,32 @@ host catalog  ──▶  host  ──▶  host set  ──▶  target
 | Onboarding action | edit `.tf`, apply | tag the VM in Azure |
 | Still needs per VM | host + set + target | set + target |
 | Extra dependency | none | service principal with Reader |
+| Fails when | an address was mistyped | the SP lacks a role assignment |
 
-**Neither model health-checks anything.** A host set answers "who is in this
+#### Choosing between them
+
+Use a **static** catalog when the machine is long-lived with a fixed
+address, when there is no cloud API to query (on-prem, another provider,
+appliances), or when you want the host list to be reviewable in a pull
+request rather than derived at runtime.
+
+Use a **dynamic** catalog when machines are created and destroyed regularly,
+when addresses are assigned rather than chosen, or when the set of machines
+is defined by a property — a tag, a subscription, a resource group — rather
+than by a list someone maintains.
+
+This project uses both so the same estate exercises each: 01–02 are fixed
+lab machines, 03–04 stand in for a fleet.
+
+#### Two things neither model does
+
+**Neither health-checks anything.** A host set answers "who is in this
 group", not "is this host reachable". A dynamic set verifies only that the
 VM still exists carrying the tag — a stopped VM stays in the set. Liveness
 is discovered when the egress worker opens the TCP connection, not before.
+
+**Neither creates targets.** This is the ceiling on automation and is
+covered next.
 
 ### The trade-off chosen here
 
