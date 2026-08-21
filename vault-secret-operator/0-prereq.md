@@ -1,0 +1,2 @@
+$ kind version
+kind v0.30.0 go1.24.6 linux/amd64
