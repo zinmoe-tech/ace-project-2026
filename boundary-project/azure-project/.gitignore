@@ -1,0 +1,9 @@
+# SSH keypairs (private + public) — never commit key material
+**/keys/
+**/key/
+
+# Terraform variable files — may hold environment-specific values
+*.tfvars
+
+# Scratch notes that end up with a real token pasted in mid-session
+**/boundary-cli.md
