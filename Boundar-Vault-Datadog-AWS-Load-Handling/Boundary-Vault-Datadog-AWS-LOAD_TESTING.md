@@ -1,12 +1,12 @@
 # Boundary + Vault + Datadog + AWS Load Handling
-## Complete Step-by-Step Implementation — Single File
+## Final Current Infrastructure Only — Step-by-Step
 
-> This document is intentionally written as **one continuous implementation procedure**.
-> Follow Step 1, then Step 2, then Step 3, in order.
+> This document contains only the **current final architecture and configuration**.
+> It intentionally excludes retired, replaced, experimental, or previous infrastructure.
 
 ---
 
-# Final Architecture
+# Current Final Architecture
 
 ```text
 HCP Boundary
@@ -15,7 +15,7 @@ BoundarySessionCounter Lambda
     ↓
 Datadog metric: boundary.active_sessions
     ↓
-Datadog Scale-Out / Scale-In monitors
+Datadog Scale-Out / Scale-In Monitors
     ↓
 Datadog Workflows
     ↓
@@ -29,7 +29,7 @@ Desired Capacity = 1 / 0
 Scale-in cleanup:
 
 ```text
-ASG Desired 1 → 0
+ASG Desired Capacity = 0
     ↓
 Termination Lifecycle Hook
     ↓
@@ -37,36 +37,294 @@ EventBridge
     ↓
 BoundaryWorkerCleanup Lambda
     ↓
-HCP Vault
+Vault AWS Auth
     ↓
-HCP Boundary
+Boundary cleanup credential from Vault
+    ↓
+HCP Boundary API
     ↓
 Delete aws-asg-<instance-id>
     ↓
-CompleteLifecycleAction
+CompleteLifecycleAction(CONTINUE)
     ↓
 EC2 terminates
 ```
 
----
-
-# Step 1 — Create AWS IAM Role for Boundary EC2 Workers
-
-## Why we need this
-
-The Boundary worker EC2 instance needs an AWS identity so it can authenticate to HCP Vault using Vault AWS IAM authentication.
-
-This role does **not** need KMS or Secrets Manager permissions if Vault is your secret store.
-
-## Role name
+Current required AWS roles:
 
 ```text
 BoundaryWorkerRole
+BoundarySessionMonitorLambdaRole
+BoundaryWorkerCleanup-role-ro7ij99a
+DatadogBoundaryScalingRole
 ```
 
-## Trust relationship
+Current required Lambda functions:
 
-Go to:
+```text
+BoundarySessionCounter
+BoundaryWorkerCleanup
+```
+
+Current ASG:
+
+```text
+boundary-worker-auto-scaling-group
+```
+
+Current Datadog metric:
+
+```text
+boundary.active_sessions
+```
+
+---
+
+
+# Overall Architecture Diagram with IAM Roles
+
+## Why this diagram is useful
+
+This diagram shows the current final relationship between HCP Boundary, HCP Vault, AWS Lambda, Datadog, AWS IAM roles, and the Auto Scaling Group.
+
+![Overall Architecture](Boundary-Vault-Datadog-AWS-Architecture.png)
+
+For an exact text-based version that is easy to keep in GitHub, use the Mermaid diagram below.
+
+```mermaid
+flowchart LR
+    U[User / Boundary CLI]
+
+    subgraph HCPB[HCP Boundary]
+        BC[Boundary Controller]
+    end
+
+    subgraph AWS[AWS]
+        SC[BoundarySessionCounter Lambda]
+        CL[BoundaryWorkerCleanup Lambda]
+        ASG[Auto Scaling Group<br/>boundary-worker-auto-scaling-group]
+        W[Temporary Boundary Worker<br/>aws-asg-instance-id]
+
+        R1[BoundarySessionMonitorLambdaRole]
+        R2[BoundaryWorkerCleanup-role-ro7ij99a]
+        R3[BoundaryWorkerRole]
+        R4[DatadogBoundaryScalingRole]
+
+        EB1[EventBridge<br/>1-minute schedule]
+        EB2[EventBridge<br/>termination cleanup rule]
+        LH[ASG Lifecycle Hook<br/>boundary-worker-terminate-cleanup]
+    end
+
+    subgraph DD[Datadog]
+        M[boundary.active_sessions]
+        SO[Scale-Out Monitor / Workflow]
+        SI[Scale-In Monitor / Workflow]
+    end
+
+    subgraph HV[HCP Vault]
+        VA[Vault AWS Auth]
+        KV1[session-monitor secret]
+        KV2[datadog-metrics secret]
+        KV3[worker-cleanup secret]
+        KV4[asg-worker secret]
+    end
+
+    U --> BC
+
+    EB1 --> SC
+    SC -. uses .-> R1
+    R1 --> VA
+    VA --> KV1
+    VA --> KV2
+    SC -->|Read sessions| BC
+    SC -->|Publish Gauge| M
+
+    M --> SO
+    M --> SI
+
+    SO -->|AssumeRole| R4
+    SI -->|AssumeRole| R4
+    R4 -->|Set Desired Capacity = 1 or 0| ASG
+
+    ASG -->|Launch| W
+    W -. uses .-> R3
+    R3 --> VA
+    VA --> KV4
+    W -->|Worker registration| BC
+
+    ASG -->|Termination event| LH
+    LH --> EB2
+    EB2 --> CL
+    CL -. uses .-> R2
+    R2 --> VA
+    VA --> KV3
+    CL -->|Delete matching worker| BC
+    CL -->|CompleteLifecycleAction| ASG
+```
+
+## IAM Role Relationships
+
+| AWS IAM Role | Used by | Why it is required |
+|---|---|---|
+| `BoundaryWorkerRole` | Temporary Boundary worker EC2 | Provides AWS identity for Vault AWS IAM authentication |
+| `BoundarySessionMonitorLambdaRole` | `BoundarySessionCounter` Lambda | Provides Lambda execution/VPC permissions and AWS identity for Vault AWS Auth |
+| `BoundaryWorkerCleanup-role-ro7ij99a` | `BoundaryWorkerCleanup` Lambda | Provides Lambda execution/VPC permissions, Vault AWS identity, and lifecycle completion permission |
+| `DatadogBoundaryScalingRole` | Datadog Workflow | Allows Datadog to call `DescribeAutoScalingGroups` and `SetDesiredCapacity` |
+
+---
+
+# Scale-Out Flow Diagram
+
+## Trigger
+
+```text
+boundary.active_sessions >= 10
+```
+
+## Result
+
+```text
+ASG Desired Capacity = 1
+```
+
+```mermaid
+flowchart LR
+    A[Boundary active sessions >= 10]
+    B[BoundarySessionCounter Lambda]
+    C[Datadog metric<br/>boundary.active_sessions]
+    D[Scale-Out Monitor]
+    E[Boundary-Worker-Scale-Out Workflow]
+    F[DatadogBoundaryScalingRole]
+    G[AWS Auto Scaling Group]
+    H[Desired Capacity = 1]
+    I[Launch EC2 Worker]
+    J[BoundaryWorkerRole]
+    K[Vault AWS Auth]
+    L[Read asg-worker secret]
+    M[Register aws-asg-instance-id]
+    N[HCP Boundary]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E -->|AssumeRole| F
+    F -->|autoscaling:SetDesiredCapacity| G
+    G --> H
+    H --> I
+    I -. uses .-> J
+    J --> K
+    K --> L
+    L --> M
+    M --> N
+```
+
+## Scale-Out Role Path
+
+```text
+Datadog
+   ↓ sts:AssumeRole + External ID
+DatadogBoundaryScalingRole
+   ↓ autoscaling:SetDesiredCapacity
+boundary-worker-auto-scaling-group
+   ↓ launch EC2
+BoundaryWorkerRole
+   ↓ Vault AWS Auth
+HCP Vault
+   ↓ read worker-registration credential
+Temporary Boundary Worker
+   ↓ register
+HCP Boundary
+```
+
+---
+
+# Scale-In Flow Diagram
+
+## Trigger
+
+```text
+boundary.active_sessions < 10
+for the configured 3-minute scale-in window
+```
+
+## Result
+
+```text
+ASG Desired Capacity = 0
+```
+
+```mermaid
+flowchart LR
+    A[Boundary active sessions < 10]
+    B[Datadog Scale-In Monitor]
+    C[Boundary-Worker-Scale-In Workflow]
+    D[DatadogBoundaryScalingRole]
+    E[AWS Auto Scaling Group]
+    F[Desired Capacity = 0]
+    G[EC2 Instance Terminating]
+    H[Lifecycle Hook<br/>Terminating:Wait]
+    I[EventBridge Cleanup Rule]
+    J[BoundaryWorkerCleanup Lambda]
+    K[BoundaryWorkerCleanup-role-ro7ij99a]
+    L[Vault AWS Auth]
+    M[Read worker-cleanup secret]
+    N[HCP Boundary]
+    O[Delete aws-asg-instance-id]
+    P[CompleteLifecycleAction CONTINUE]
+    Q[EC2 Terminated]
+
+    A --> B
+    B --> C
+    C -->|AssumeRole| D
+    D -->|autoscaling:SetDesiredCapacity| E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    J -. uses .-> K
+    K --> L
+    L --> M
+    M --> J
+    J --> N
+    N --> O
+    J --> P
+    P --> E
+    E --> Q
+```
+
+## Scale-In Role Path
+
+```text
+Datadog
+   ↓ sts:AssumeRole + External ID
+DatadogBoundaryScalingRole
+   ↓ autoscaling:SetDesiredCapacity
+boundary-worker-auto-scaling-group
+   ↓ termination lifecycle event
+BoundaryWorkerCleanup Lambda
+   ↓ uses
+BoundaryWorkerCleanup-role-ro7ij99a
+   ↓ Vault AWS Auth
+HCP Vault
+   ↓ read cleanup credential
+HCP Boundary
+   ↓ delete matching aws-asg-instance-id
+CompleteLifecycleAction(CONTINUE)
+   ↓
+EC2 termination completes
+```
+
+---
+
+# Step 1 — Create BoundaryWorkerRole
+
+## Why we use it
+
+The temporary Boundary worker EC2 instance needs an AWS identity so it can authenticate to HCP Vault by using Vault AWS IAM authentication.
+
+## AWS Console
 
 ```text
 AWS Console
@@ -77,7 +335,13 @@ AWS Console
 → EC2
 ```
 
-Or use this trust policy:
+Role name:
+
+```text
+BoundaryWorkerRole
+```
+
+Trust policy:
 
 ```json
 {
@@ -94,36 +358,48 @@ Or use this trust policy:
 }
 ```
 
-## Result
-
-```text
-Boundary EC2 Worker
-    ↓ uses
-BoundaryWorkerRole
-    ↓
-Vault AWS Auth
-```
+No additional secret-reading permissions are required if the worker gets its registration credential from Vault.
 
 ---
 
-# Step 2 — Create AWS IAM Role for BoundarySessionCounter Lambda
+# Step 2 — Create BoundarySessionMonitorLambdaRole
 
-## Why we need this
+## Why we use it
 
 `BoundarySessionCounter` needs:
 
-- Lambda execution permissions
-- CloudWatch logging
-- VPC ENI permissions
-- AWS identity for Vault AWS Auth
+```text
+Lambda execution
+CloudWatch logging
+VPC networking
+AWS identity for Vault AWS Auth
+```
 
-## Role name
+## AWS Console
+
+```text
+AWS Console
+→ IAM
+→ Roles
+→ Create role
+→ AWS service
+→ Lambda
+```
+
+Role name:
 
 ```text
 BoundarySessionMonitorLambdaRole
 ```
 
-## Trust relationship
+Attach:
+
+```text
+AWSLambdaBasicExecutionRole
+AWSLambdaVPCAccessExecutionRole
+```
+
+Trust policy:
 
 ```json
 {
@@ -140,77 +416,44 @@ BoundarySessionMonitorLambdaRole
 }
 ```
 
-## Attach AWS managed policies
-
-```text
-AWSLambdaBasicExecutionRole
-AWSLambdaVPCAccessExecutionRole
-```
-
-You do **not** need:
-
-```text
-cloudwatch:PutMetricData
-```
-
-because the metric is sent directly to Datadog.
-
 ---
 
-# Step 3 — Create AWS IAM Role for BoundaryWorkerCleanup Lambda
+# Step 3 — Create BoundaryWorkerCleanup Lambda Role
 
-## Why we need this
+## Why we use it
 
-The cleanup Lambda must:
+`BoundaryWorkerCleanup` must:
 
-- run inside Lambda
-- write logs
-- use VPC networking
-- authenticate to Vault
-- call `autoscaling:CompleteLifecycleAction`
+```text
+write CloudWatch logs
+use VPC networking
+authenticate to Vault
+call autoscaling:CompleteLifecycleAction
+```
 
-## Role name
+Create Lambda role:
 
 ```text
 BoundaryWorkerCleanup-role-ro7ij99a
 ```
 
-## Trust relationship
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "lambda.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-```
-
-## Attach AWS managed policies
+Attach:
 
 ```text
 AWSLambdaBasicExecutionRole
 AWSLambdaVPCAccessExecutionRole
 ```
 
-## Add inline policy
+Add inline policy:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "CompleteBoundaryWorkerTermination",
+      "Sid": "CompleteBoundaryTermination",
       "Effect": "Allow",
-      "Action": [
-        "autoscaling:CompleteLifecycleAction"
-      ],
+      "Action": "autoscaling:CompleteLifecycleAction",
       "Resource": "arn:aws:autoscaling:<AWS_REGION>:<AWS_ACCOUNT_ID>:autoScalingGroup:<ASG_UUID>:autoScalingGroupName/boundary-worker-auto-scaling-group"
     }
   ]
@@ -219,35 +462,63 @@ AWSLambdaVPCAccessExecutionRole
 
 ---
 
-# Step 4 — Create Datadog AWS Scaling Role
+# Step 4 — Create DatadogBoundaryScalingRole
 
-## Why we need this
+## Why we use it
 
-Datadog now controls AWS Auto Scaling directly.
+Datadog directly changes the Auto Scaling Group desired capacity.
 
-The old `BoundaryWorkerScaler` Lambda is no longer required.
+## First get the Datadog External ID
 
-## Role name
+In Datadog:
+
+```text
+Integrations
+→ Amazon Web Services
+→ Add / Edit AWS Account
+→ Manual setup
+→ Role Delegation
+```
+
+Copy:
+
+```text
+AWS External ID
+```
+
+Also note the Datadog AWS account ID shown by Datadog.
+
+## Create AWS role
+
+```text
+AWS Console
+→ IAM
+→ Roles
+→ Create role
+→ AWS account
+→ Another AWS account
+```
+
+Use:
+
+```text
+Datadog AWS Account ID:
+<DATADOG_AWS_ACCOUNT_ID>
+
+Require external ID:
+Enabled
+
+External ID:
+<DATADOG_EXTERNAL_ID>
+```
+
+Role name:
 
 ```text
 DatadogBoundaryScalingRole
 ```
 
-## Trust relationship
-
-Trusted entity:
-
-```text
-Datadog AWS account
-```
-
-Condition:
-
-```text
-Datadog External ID
-```
-
-Use:
+Trust policy:
 
 ```json
 {
@@ -269,7 +540,7 @@ Use:
 }
 ```
 
-## Add permissions
+Add inline policy:
 
 ```json
 {
@@ -278,30 +549,40 @@ Use:
     {
       "Sid": "DescribeBoundaryASG",
       "Effect": "Allow",
-      "Action": [
-        "autoscaling:DescribeAutoScalingGroups"
-      ],
+      "Action": "autoscaling:DescribeAutoScalingGroups",
       "Resource": "*"
     },
     {
       "Sid": "SetBoundaryDesiredCapacity",
       "Effect": "Allow",
-      "Action": [
-        "autoscaling:SetDesiredCapacity"
-      ],
+      "Action": "autoscaling:SetDesiredCapacity",
       "Resource": "arn:aws:autoscaling:<AWS_REGION>:<AWS_ACCOUNT_ID>:autoScalingGroup:<ASG_UUID>:autoScalingGroupName/boundary-worker-auto-scaling-group"
     }
   ]
 }
 ```
 
+Policy name:
+
+```text
+DatadogBoundaryAutoScalingPolicy
+```
+
 ---
 
-# Step 5 — Configure Vault Environment
+# Step 5 — Configure Vault CLI Environment
 
-## Why we need this
+## Why we use it
 
-All secrets and SSH signing are managed through HCP Vault.
+Vault stores:
+
+```text
+Boundary session-monitor credential
+Boundary cleanup credential
+Boundary ASG worker registration credential
+Datadog API key
+SSH CA
+```
 
 Set:
 
@@ -338,15 +619,19 @@ If `aws/` is not enabled:
 vault auth enable aws
 ```
 
-## Why
+## Why we use it
 
-AWS workloads will authenticate to Vault using IAM instead of long-lived Vault tokens.
+AWS workloads authenticate to Vault by using their IAM roles.
+
+```text
+BoundaryWorkerRole
+BoundarySessionMonitorLambdaRole
+BoundaryWorkerCleanup-role-ro7ij99a
+```
 
 ---
 
-# Step 7 — Create Vault Policies
-
-## 7.1 ASG worker policy
+# Step 7 — Create Vault Policy for ASG Worker
 
 Create:
 
@@ -364,9 +649,15 @@ Apply:
 vault policy write boundary-asg-worker boundary-asg-worker.hcl
 ```
 
+## Why we use it
+
+The ASG worker only needs to read its Boundary worker-registration credential.
+
 ---
 
-## 7.2 Session monitor policy
+# Step 8 — Create Vault Policy for Session Counter
+
+Create:
 
 ```bash
 cat > boundary-session-monitor.hcl <<'EOF'
@@ -386,9 +677,20 @@ Apply:
 vault policy write boundary-session-monitor boundary-session-monitor.hcl
 ```
 
+## Why we use it
+
+`BoundarySessionCounter` needs:
+
+```text
+Boundary monitor username/password
+Datadog API key
+```
+
 ---
 
-## 7.3 Cleanup policy
+# Step 9 — Create Vault Policy for Cleanup Lambda
+
+Create:
 
 ```bash
 cat > boundary-worker-cleanup.hcl <<'EOF'
@@ -404,67 +706,13 @@ Apply:
 vault policy write boundary-worker-cleanup boundary-worker-cleanup.hcl
 ```
 
----
+## Why we use it
 
-## 7.4 Boundary controller policy
-
-```bash
-cat > boundary-controller.hcl <<'EOF'
-path "auth/token/lookup-self" {
-  capabilities = ["read"]
-}
-
-path "auth/token/renew-self" {
-  capabilities = ["update"]
-}
-
-path "auth/token/revoke-self" {
-  capabilities = ["update"]
-}
-
-path "sys/leases/renew" {
-  capabilities = ["update"]
-}
-
-path "sys/leases/revoke" {
-  capabilities = ["update"]
-}
-
-path "sys/capabilities-self" {
-  capabilities = ["update"]
-}
-EOF
-```
-
-Apply:
-
-```bash
-vault policy write boundary-controller boundary-controller.hcl
-```
+The cleanup Lambda only needs to read its dedicated Boundary cleanup credential.
 
 ---
 
-## 7.5 SSH signing policy
-
-```bash
-cat > boundary-ssh-policy.hcl <<'EOF'
-path "boundary-ssh/sign/boundary-client" {
-  capabilities = ["create", "update"]
-}
-EOF
-```
-
-Apply:
-
-```bash
-vault policy write boundary-ssh-policy boundary-ssh-policy.hcl
-```
-
----
-
-# Step 8 — Create Vault AWS Auth Roles
-
-## 8.1 ASG worker Vault role
+# Step 10 — Create Vault AWS Auth Role for ASG Worker
 
 ```bash
 vault write auth/aws/role/boundary-asg-worker \
@@ -484,7 +732,7 @@ vault read auth/aws/role/boundary-asg-worker
 
 ---
 
-## 8.2 Session Counter Vault role
+# Step 11 — Create Vault AWS Auth Role for Session Counter
 
 ```bash
 vault write auth/aws/role/boundary-session-monitor-lambda \
@@ -504,7 +752,7 @@ vault read auth/aws/role/boundary-session-monitor-lambda
 
 ---
 
-## 8.3 Cleanup Vault role
+# Step 12 — Create Vault AWS Auth Role for Cleanup Lambda
 
 ```bash
 vault write auth/aws/role/boundary-worker-cleanup \
@@ -524,9 +772,7 @@ vault read auth/aws/role/boundary-worker-cleanup
 
 ---
 
-# Step 9 — Store Automation Secrets in Vault
-
-## ASG worker registration
+# Step 13 — Store ASG Worker Registration Credential in Vault
 
 ```bash
 vault kv put boundary-registration/asg-worker \
@@ -534,7 +780,13 @@ vault kv put boundary-registration/asg-worker \
   password="<BOUNDARY_WORKER_REGISTRATION_PASSWORD>"
 ```
 
-## Session monitor
+## Why we use it
+
+The temporary worker uses this Boundary identity to register itself as a worker.
+
+---
+
+# Step 14 — Store Session Monitor Credential in Vault
 
 ```bash
 vault kv put boundary-registration/session-monitor \
@@ -542,14 +794,26 @@ vault kv put boundary-registration/session-monitor \
   password="<BOUNDARY_SESSION_MONITOR_PASSWORD>"
 ```
 
-## Datadog API key
+## Why we use it
+
+`BoundarySessionCounter` uses this Boundary account to list active sessions.
+
+---
+
+# Step 15 — Store Datadog API Key in Vault
 
 ```bash
 vault kv put boundary-registration/datadog-metrics \
   api_key="<DATADOG_API_KEY>"
 ```
 
-## Cleanup account
+## Why we use it
+
+The Session Counter sends the metric directly to Datadog.
+
+---
+
+# Step 16 — Store Cleanup Boundary Credential in Vault
 
 ```bash
 vault kv put boundary-registration/worker-cleanup \
@@ -557,80 +821,15 @@ vault kv put boundary-registration/worker-cleanup \
   password="<BOUNDARY_WORKER_CLEANUP_PASSWORD>"
 ```
 
----
+## Why we use it
 
-# Step 10 — Configure Vault SSH Secrets Engine
-
-Enable:
-
-```bash
-vault secrets enable -path=boundary-ssh ssh
-```
-
-Generate CA:
-
-```bash
-vault write boundary-ssh/config/ca generate_signing_key=true
-```
-
-Read public key:
-
-```bash
-vault read -field=public_key boundary-ssh/config/ca
-```
-
-Create role:
-
-```bash
-vault write boundary-ssh/roles/boundary-client \
-  key_type=ca \
-  allow_user_certificates=true \
-  allowed_users="azureuser" \
-  default_user="azureuser" \
-  allowed_extensions="permit-pty" \
-  default_extensions='{"permit-pty":""}' \
-  ttl="10m" \
-  max_ttl="10m" \
-  not_before_duration="30s"
-```
+The cleanup Lambda uses this identity to delete only the matching temporary Boundary worker.
 
 ---
 
-# Step 11 — Create Boundary Vault Credential Store Token
+# Step 17 — Configure Boundary Session Monitor Permission
 
-```bash
-vault token create \
-  -no-default-policy=true \
-  -policy="boundary-controller" \
-  -policy="boundary-ssh-policy" \
-  -orphan=true \
-  -period=24h \
-  -renewable=true
-```
-
-Store this token securely.
-
-Verify:
-
-```bash
-VAULT_TOKEN="<BOUNDARY_VAULT_TOKEN>" vault token lookup
-```
-
-Expected:
-
-```text
-orphan     true
-renewable  true
-period     24h
-```
-
----
-
-# Step 12 — Configure Boundary RBAC Accounts
-
-## 12.1 Session Monitor
-
-Create a Boundary identity:
+Create or use a Boundary user/account:
 
 ```text
 boundary-session-monitor
@@ -642,15 +841,15 @@ Grant:
 ids=*;type=session;actions=list,read
 ```
 
-Why:
+## Why we use it
 
-The Session Counter only needs session visibility.
+The Lambda only needs read-only access to sessions.
 
 ---
 
-## 12.2 Cleanup Account
+# Step 18 — Configure Boundary Cleanup Permission
 
-Create:
+Create or use:
 
 ```text
 boundary-worker-cleanup
@@ -663,23 +862,23 @@ type=worker;actions=list
 ids=*;type=worker;actions=read,delete
 ```
 
-Why:
+## Why we use it
 
-The cleanup Lambda must list and delete temporary workers.
+The cleanup Lambda must find and delete the matching ASG worker.
 
 ---
 
-## 12.3 ASG Worker Registration Account
+# Step 19 — Configure Boundary ASG Worker Registration Permission
 
-Create a dedicated Boundary registration identity.
+Create a dedicated Boundary user/account for ASG worker registration.
 
-Required grant:
+Grant:
 
 ```text
 type=worker;actions=create:worker-led
 ```
 
-Store its username/password in:
+Store the credential in:
 
 ```text
 boundary-registration/asg-worker
@@ -687,41 +886,9 @@ boundary-registration/asg-worker
 
 ---
 
-# Step 13 — Configure SSH Target to Trust Vault CA
+# Step 20 — Configure ASG Boundary Worker HCL
 
-Copy Vault CA public key to target.
-
-Example:
-
-```bash
-sudo install -m 0644 vault-ssh-ca.pub \
-  /etc/ssh/vault-ssh-ca.pub
-```
-
-Configure SSH:
-
-```bash
-echo 'TrustedUserCAKeys /etc/ssh/vault-ssh-ca.pub' \
-  | sudo tee /etc/ssh/sshd_config.d/99-vault-ca.conf
-```
-
-Validate:
-
-```bash
-sudo sshd -t
-```
-
-Restart:
-
-```bash
-sudo systemctl restart ssh || sudo systemctl restart sshd
-```
-
----
-
-# Step 14 — Configure Permanent Boundary Worker
-
-Example:
+Use:
 
 ```hcl
 disable_mlock = true
@@ -740,107 +907,74 @@ worker {
 tags {
   type       = ["egress"]
   cloud      = ["aws"]
+  pool       = ["aws-autoscaling"]
   target     = ["on-aws"]
   cred-store = ["vault"]
 }
 ```
 
-Restart:
-
-```bash
-sudo systemctl restart boundary-worker
-```
-
-Check:
-
-```bash
-sudo systemctl status boundary-worker --no-pager -l
-```
-
----
-
-# Step 15 — Create Boundary Vault Credential Store
-
-Example CLI:
-
-```bash
-export BOUNDARY_ADDR="<HCP_BOUNDARY_ADDR>"
-export BOUNDARY_TOKEN="<ADMIN_TOKEN>"
-export BOUNDARY_VAULT_TOKEN="<BOUNDARY_VAULT_TOKEN>"
-```
-
-Create:
-
-```bash
-boundary credential-stores create vault \
-  -name="hcp-vault-ssh" \
-  -scope-id="<BOUNDARY_PROJECT_ID>" \
-  -vault-address="<HCP_VAULT_PRIVATE_ENDPOINT>" \
-  -vault-namespace="admin" \
-  -vault-token="env://BOUNDARY_VAULT_TOKEN" \
-  -worker-filter='"vault" in "/tags/cred-store"' \
-  -token env://BOUNDARY_TOKEN
-```
-
-Record:
+## Why we use these tags
 
 ```text
-VAULT_CREDENTIAL_STORE_ID
+type=egress
+→ worker is used for outbound target access
+
+pool=aws-autoscaling
+→ identifies temporary ASG workers
+
+target=on-aws
+→ can be used by Boundary target worker filters
+
+cred-store=vault
+→ can be selected for private Vault access
 ```
 
 ---
 
-# Step 16 — Create Boundary SSH Credential Library
+# Step 21 — Create AWS Launch Template
 
-```bash
-boundary credential-libraries create vault-ssh-certificate \
-  -name="boundary-ssh-cert" \
-  -credential-store-id="<VAULT_CREDENTIAL_STORE_ID>" \
-  -vault-path="boundary-ssh/sign/boundary-client" \
-  -username="azureuser" \
-  -key-type="ed25519" \
-  -ttl="10m" \
-  -extension="permit-pty" \
-  -token env://BOUNDARY_TOKEN
-```
-
-Record:
-
-```text
-CREDENTIAL_LIBRARY_ID
-```
-
----
-
-# Step 17 — Attach Credential Library to Boundary Target
-
-```bash
-boundary targets add-credential-sources \
-  -id="<TARGET_ID>" \
-  -injected-application-credential-source="<CREDENTIAL_LIBRARY_ID>" \
-  -token env://BOUNDARY_TOKEN
-```
-
----
-
-# Step 18 — Create ASG Launch Template
-
-## Launch Template name
+Name:
 
 ```text
 autoscaling-worker-template
 ```
 
-Use:
+Configure:
 
 ```text
+AMI:
+Ubuntu supported image
+
+Instance type:
+t2.small
+
+IAM instance profile:
+BoundaryWorkerRole
+
+Network:
 Private subnet
-No public IP
-BoundaryWorkerRole instance profile
+
+Public IP:
+Disabled
+
+Security group:
 Boundary worker security group
 ```
 
-Use this User Data:
+Required outbound connectivity:
+
+```text
+TCP 9202 → HCP Boundary
+TCP 8200 → HCP Vault
+TCP 443  → HCP Boundary API / AWS / package repositories
+TCP 22   → SSH targets
+```
+
+---
+
+# Step 22 — Add Launch Template User Data
+
+Use this bootstrap logic:
 
 ```bash
 #!/usr/bin/env bash
@@ -986,64 +1120,81 @@ boundary workers create worker-led \
   -description="AWS Auto Scaling Boundary worker" \
   -worker-generated-auth-token="${WORKER_AUTH_REQUEST_TOKEN}" \
   -token env://BOUNDARY_TOKEN
-
-unset BOUNDARY_PASSWORD
-unset BOUNDARY_LOGIN_NAME
-unset BOUNDARY_TOKEN
-unset VAULT_TOKEN
-unset SECRET_JSON
-unset BOUNDARY_AUTH_JSON
-unset WORKER_AUTH_REQUEST_TOKEN
 ```
+
+## Why the worker name is important
+
+```text
+aws-asg-<INSTANCE_ID>
+```
+
+The cleanup Lambda receives the terminating EC2 instance ID, so it can calculate the exact matching Boundary worker name.
 
 ---
 
-# Step 19 — Create Auto Scaling Group
+# Step 23 — Create Auto Scaling Group
 
-## Name
+Name:
 
 ```text
 boundary-worker-auto-scaling-group
 ```
 
-## Capacity
+Use:
 
 ```text
-Min: 0
-Desired: 0
-Max: 2 or 3
+Launch Template:
+autoscaling-worker-template
+
+Min:
+0
+
+Desired:
+0
+
+Max:
+2
 ```
 
-Why:
+Scaling behavior:
 
 ```text
-Scale Out → Desired = 1
-Scale In  → Desired = 0
+10 or more active sessions
+→ Desired Capacity = 1
+
+Below 10 for the configured scale-in window
+→ Desired Capacity = 0
 ```
 
 ---
 
-# Step 20 — Create BoundarySessionCounter Lambda
+# Step 24 — Create BoundarySessionCounter Lambda
 
-## Function
+Function name:
 
 ```text
 BoundarySessionCounter
 ```
 
-## Runtime
+Runtime:
 
 ```text
 Python 3.12
 ```
 
-## Execution role
+Execution role:
 
 ```text
 BoundarySessionMonitorLambdaRole
 ```
 
-## Environment variables
+VPC:
+
+```text
+VPC/subnet that can reach HCP Vault private endpoint
+```
+
+Environment variables:
 
 ```text
 VAULT_ADDR=<HCP_VAULT_PRIVATE_ENDPOINT>
@@ -1057,7 +1208,9 @@ BOUNDARY_SCOPE_ID=global
 DD_SITE=datadoghq.com
 ```
 
-## Full Lambda code
+---
+
+# Step 25 — Add BoundarySessionCounter Lambda Code
 
 ```python
 import os
@@ -1065,7 +1218,6 @@ import json
 import base64
 import time
 import urllib.request
-import urllib.error
 import urllib.parse
 
 import boto3
@@ -1074,500 +1226,6 @@ from botocore.awsrequest import AWSRequest
 
 
 def vault_aws_login(vault_addr, vault_namespace, vault_aws_role):
-    boto_session = boto3.Session()
-    credentials = boto_session.get_credentials().get_frozen_credentials()
-
-    sts_url = "https://sts.amazonaws.com/"
-    sts_body = "Action=GetCallerIdentity&Version=2011-06-15"
-
-    aws_request = AWSRequest(
-        method="POST",
-        url=sts_url,
-        data=sts_body,
-        headers={
-            "Content-Type":
-                "application/x-www-form-urlencoded; charset=utf-8",
-            "Host": "sts.amazonaws.com",
-        },
-    )
-
-    SigV4Auth(
-        credentials,
-        "sts",
-        "us-east-1",
-    ).add_auth(aws_request)
-
-    signed_headers = dict(aws_request.headers.items())
-
-    payload = {
-        "role": vault_aws_role,
-        "iam_http_request_method": "POST",
-        "iam_request_url": base64.b64encode(
-            sts_url.encode()
-        ).decode(),
-        "iam_request_body": base64.b64encode(
-            sts_body.encode()
-        ).decode(),
-        "iam_request_headers": base64.b64encode(
-            json.dumps(signed_headers).encode()
-        ).decode(),
-    }
-
-    request = urllib.request.Request(
-        f"{vault_addr}/v1/auth/aws/login",
-        data=json.dumps(payload).encode(),
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "X-Vault-Namespace": vault_namespace,
-        },
-    )
-
-    with urllib.request.urlopen(request, timeout=10) as response:
-        result = json.loads(response.read().decode())
-
-    print("Vault AWS authentication successful")
-    return result["auth"]["client_token"]
-
-
-def vault_read_kv2(vault_addr, namespace, token, api_path):
-    request = urllib.request.Request(
-        f"{vault_addr}/v1/{api_path}",
-        method="GET",
-        headers={
-            "X-Vault-Token": token,
-            "X-Vault-Namespace": namespace,
-        },
-    )
-
-    with urllib.request.urlopen(request, timeout=10) as response:
-        result = json.loads(response.read().decode())
-
-    return result["data"]["data"]
-
-
-def boundary_login(boundary_addr, auth_method_id, login_name, password):
-    payload = {
-        "attributes": {
-            "login_name": login_name,
-            "password": password,
-        },
-        "command": "login",
-    }
-
-    request = urllib.request.Request(
-        f"{boundary_addr}/v1/auth-methods/"
-        f"{auth_method_id}:authenticate",
-        data=json.dumps(payload).encode(),
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-        },
-    )
-
-    with urllib.request.urlopen(request, timeout=10) as response:
-        result = json.loads(response.read().decode())
-
-    print("Boundary authentication successful")
-    return result["attributes"]["token"]
-
-
-def lambda_handler(event, context):
-    try:
-        vault_addr = os.environ["VAULT_ADDR"].rstrip("/")
-        vault_namespace = os.environ["VAULT_NAMESPACE"]
-        vault_aws_role = os.environ["VAULT_AWS_ROLE"]
-
-        boundary_addr = os.environ["BOUNDARY_ADDR"].rstrip("/")
-        boundary_auth_method_id = os.environ["BOUNDARY_AUTH_METHOD_ID"]
-        boundary_scope_id = os.environ.get("BOUNDARY_SCOPE_ID", "global")
-
-        dd_site = os.environ.get("DD_SITE", "datadoghq.com")
-
-        vault_token = vault_aws_login(
-            vault_addr,
-            vault_namespace,
-            vault_aws_role,
-        )
-
-        boundary_secret = vault_read_kv2(
-            vault_addr,
-            vault_namespace,
-            vault_token,
-            "boundary-registration/data/session-monitor",
-        )
-
-        print("Boundary monitoring credentials retrieved from Vault")
-
-        datadog_secret = vault_read_kv2(
-            vault_addr,
-            vault_namespace,
-            vault_token,
-            "boundary-registration/data/datadog-metrics",
-        )
-
-        print("Datadog API key retrieved from Vault")
-
-        boundary_token = boundary_login(
-            boundary_addr,
-            boundary_auth_method_id,
-            boundary_secret["login_name"],
-            boundary_secret["password"],
-        )
-
-        query = urllib.parse.urlencode({
-            "scope_id": boundary_scope_id,
-            "recursive": "true",
-        })
-
-        sessions_request = urllib.request.Request(
-            f"{boundary_addr}/v1/sessions?{query}",
-            method="GET",
-            headers={
-                "Authorization": f"Bearer {boundary_token}",
-            },
-        )
-
-        with urllib.request.urlopen(sessions_request, timeout=10) as response:
-            sessions_result = json.loads(response.read().decode())
-
-        sessions = sessions_result.get("items", [])
-
-        active_count = sum(
-            1
-            for session in sessions
-            if session.get("status") == "active"
-        )
-
-        print(f"Active Boundary sessions: {active_count}")
-
-        datadog_payload = {
-            "series": [
-                {
-                    "metric": "boundary.active_sessions",
-                    "type": 3,
-                    "points": [
-                        {
-                            "timestamp": int(time.time()),
-                            "value": active_count,
-                        }
-                    ],
-                    "resources": [
-                        {
-                            "name": "hcp-boundary",
-                            "type": "service",
-                        }
-                    ],
-                }
-            ]
-        }
-
-        datadog_request = urllib.request.Request(
-            f"https://api.{dd_site}/api/v2/series",
-            data=json.dumps(datadog_payload).encode(),
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "DD-API-KEY": datadog_secret["api_key"],
-            },
-        )
-
-        with urllib.request.urlopen(datadog_request, timeout=10) as response:
-            datadog_status = response.status
-
-        print(
-            "Published Datadog metric: "
-            f"boundary.active_sessions={active_count}"
-        )
-
-        return {
-            "statusCode": 200,
-            "body": {
-                "success": True,
-                "active_sessions": active_count,
-                "datadog_http_status": datadog_status,
-            },
-        }
-
-    except Exception as exc:
-        print(f"ERROR: {str(exc)}")
-        raise
-```
-
----
-
-# Step 21 — Schedule BoundarySessionCounter Every Minute
-
-Create EventBridge schedule:
-
-```bash
-aws events put-rule \
-  --name boundary-session-counter-every-minute \
-  --schedule-expression 'rate(1 minute)' \
-  --state ENABLED
-```
-
-Allow EventBridge:
-
-```bash
-aws lambda add-permission \
-  --function-name BoundarySessionCounter \
-  --statement-id EventBridgeBoundarySessionCounter \
-  --action lambda:InvokeFunction \
-  --principal events.amazonaws.com \
-  --source-arn "arn:aws:events:<AWS_REGION>:<AWS_ACCOUNT_ID>:rule/boundary-session-counter-every-minute"
-```
-
-Target:
-
-```bash
-aws events put-targets \
-  --rule boundary-session-counter-every-minute \
-  --targets "Id"="1","Arn"="arn:aws:lambda:<AWS_REGION>:<AWS_ACCOUNT_ID>:function:BoundarySessionCounter"
-```
-
----
-
-# Step 22 — Configure Datadog AWS Connection
-
-Go to:
-
-```text
-Datadog
-→ Integrations
-→ Amazon Web Services
-→ Add New AWS Account
-→ Manually
-```
-
-Use:
-
-```text
-Role Delegation
-```
-
-Copy:
-
-```text
-AWS External ID
-```
-
-In AWS create/use:
-
-```text
-DatadogBoundaryScalingRole
-```
-
-Then in Datadog:
-
-```text
-AWS Account ID:
-<YOUR_AWS_ACCOUNT_ID>
-
-AWS Role Name:
-DatadogBoundaryScalingRole
-```
-
-Save.
-
----
-
-# Step 23 — Configure Datadog Scale-Out Monitor
-
-Metric:
-
-```text
-boundary.active_sessions
-```
-
-Filter:
-
-```text
-service:hcp-boundary
-```
-
-Threshold:
-
-```text
-> 9
-```
-
-Attach workflow:
-
-```text
-Boundary-Worker-Scale-Out
-```
-
----
-
-# Step 24 — Configure Datadog Scale-Out Workflow
-
-Use:
-
-```text
-AWS
-→ AWS Autoscaling
-→ Set desired capacity
-```
-
-Configuration:
-
-```text
-Connection:
-Boundary-AWS-Scaling
-
-Region:
-us-east-1
-
-Auto Scaling Group:
-boundary-worker-auto-scaling-group
-
-Desired Capacity:
-1
-```
-
-Do not use only:
-
-```text
-Describe auto scaling group
-```
-
-because it is read-only.
-
----
-
-# Step 25 — Configure Datadog Scale-In Monitor
-
-Metric:
-
-```text
-boundary.active_sessions
-```
-
-Filter:
-
-```text
-service:hcp-boundary
-```
-
-Use:
-
-```text
-MAX over last 3 minutes
-below 10
-```
-
-Why:
-
-```text
-8,7,6
-MAX=8
-→ below 10 for the full window
-```
-
----
-
-# Step 26 — Configure Datadog Scale-In Workflow
-
-Use:
-
-```text
-AWS Autoscaling
-→ Set desired capacity
-```
-
-Configuration:
-
-```text
-Connection:
-Boundary-AWS-Scaling
-
-Region:
-us-east-1
-
-ASG:
-boundary-worker-auto-scaling-group
-
-Desired Capacity:
-0
-```
-
----
-
-# Step 27 — Create ASG Termination Lifecycle Hook
-
-```bash
-aws autoscaling put-lifecycle-hook \
-  --lifecycle-hook-name boundary-worker-terminate-cleanup \
-  --auto-scaling-group-name boundary-worker-auto-scaling-group \
-  --lifecycle-transition autoscaling:EC2_INSTANCE_TERMINATING \
-  --heartbeat-timeout 120 \
-  --default-result CONTINUE
-```
-
-Why:
-
-This pauses EC2 termination while HCP Boundary worker cleanup runs.
-
----
-
-# Step 28 — Create BoundaryWorkerCleanup Lambda
-
-## Function
-
-```text
-BoundaryWorkerCleanup
-```
-
-## Runtime
-
-```text
-Python 3.12
-```
-
-## Role
-
-```text
-BoundaryWorkerCleanup-role-ro7ij99a
-```
-
-## Environment variables
-
-```text
-VAULT_ADDR=<HCP_VAULT_PRIVATE_ENDPOINT>
-VAULT_NAMESPACE=admin
-VAULT_AWS_ROLE=boundary-worker-cleanup
-
-BOUNDARY_ADDR=<HCP_BOUNDARY_ADDR>
-BOUNDARY_AUTH_METHOD_ID=<BOUNDARY_PASSWORD_AUTH_METHOD_ID>
-```
-
-## Full Lambda code
-
-```python
-import os
-import json
-import base64
-import urllib.request
-import urllib.error
-import urllib.parse
-
-import boto3
-from botocore.auth import SigV4Auth
-from botocore.awsrequest import AWSRequest
-
-
-AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-
-autoscaling = boto3.client(
-    "autoscaling",
-    region_name=AWS_REGION,
-)
-
-
-def vault_aws_login(vault_addr, namespace, vault_role):
-    print("Authenticating to Vault using AWS IAM...")
-
     credentials = (
         boto3.Session()
         .get_credentials()
@@ -1594,7 +1252,504 @@ def vault_aws_login(vault_addr, namespace, vault_role):
         "us-east-1",
     ).add_auth(aws_request)
 
-    signed_headers = dict(aws_request.headers.items())
+    payload = {
+        "role": vault_aws_role,
+        "iam_http_request_method": "POST",
+        "iam_request_url": base64.b64encode(
+            sts_url.encode()
+        ).decode(),
+        "iam_request_body": base64.b64encode(
+            sts_body.encode()
+        ).decode(),
+        "iam_request_headers": base64.b64encode(
+            json.dumps(dict(aws_request.headers.items())).encode()
+        ).decode(),
+    }
+
+    request = urllib.request.Request(
+        f"{vault_addr}/v1/auth/aws/login",
+        data=json.dumps(payload).encode(),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "X-Vault-Namespace": vault_namespace,
+        },
+    )
+
+    with urllib.request.urlopen(request, timeout=10) as response:
+        result = json.loads(response.read().decode())
+
+    print("Vault AWS authentication successful")
+    return result["auth"]["client_token"]
+
+
+def vault_read(vault_addr, namespace, token, path):
+    request = urllib.request.Request(
+        f"{vault_addr}/v1/{path}",
+        method="GET",
+        headers={
+            "X-Vault-Token": token,
+            "X-Vault-Namespace": namespace,
+        },
+    )
+
+    with urllib.request.urlopen(request, timeout=10) as response:
+        result = json.loads(response.read().decode())
+
+    return result["data"]["data"]
+
+
+def boundary_login(boundary_addr, auth_method_id, login_name, password):
+    payload = {
+        "attributes": {
+            "login_name": login_name,
+            "password": password,
+        },
+        "command": "login",
+    }
+
+    request = urllib.request.Request(
+        f"{boundary_addr}/v1/auth-methods/{auth_method_id}:authenticate",
+        data=json.dumps(payload).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+
+    with urllib.request.urlopen(request, timeout=10) as response:
+        result = json.loads(response.read().decode())
+
+    print("Boundary authentication successful")
+    return result["attributes"]["token"]
+
+
+def lambda_handler(event, context):
+    vault_addr = os.environ["VAULT_ADDR"].rstrip("/")
+    vault_namespace = os.environ["VAULT_NAMESPACE"]
+    vault_role = os.environ["VAULT_AWS_ROLE"]
+
+    boundary_addr = os.environ["BOUNDARY_ADDR"].rstrip("/")
+    auth_method_id = os.environ["BOUNDARY_AUTH_METHOD_ID"]
+    scope_id = os.environ.get("BOUNDARY_SCOPE_ID", "global")
+
+    dd_site = os.environ.get("DD_SITE", "datadoghq.com")
+
+    vault_token = vault_aws_login(
+        vault_addr,
+        vault_namespace,
+        vault_role,
+    )
+
+    boundary_secret = vault_read(
+        vault_addr,
+        vault_namespace,
+        vault_token,
+        "boundary-registration/data/session-monitor",
+    )
+
+    print("Boundary monitoring credentials retrieved from Vault")
+
+    datadog_secret = vault_read(
+        vault_addr,
+        vault_namespace,
+        vault_token,
+        "boundary-registration/data/datadog-metrics",
+    )
+
+    print("Datadog API key retrieved from Vault")
+
+    boundary_token = boundary_login(
+        boundary_addr,
+        auth_method_id,
+        boundary_secret["login_name"],
+        boundary_secret["password"],
+    )
+
+    query = urllib.parse.urlencode({
+        "scope_id": scope_id,
+        "recursive": "true",
+    })
+
+    request = urllib.request.Request(
+        f"{boundary_addr}/v1/sessions?{query}",
+        method="GET",
+        headers={
+            "Authorization": f"Bearer {boundary_token}",
+        },
+    )
+
+    with urllib.request.urlopen(request, timeout=10) as response:
+        result = json.loads(response.read().decode())
+
+    sessions = result.get("items", [])
+
+    active_count = sum(
+        1
+        for session in sessions
+        if session.get("status") == "active"
+    )
+
+    print(f"Active Boundary sessions: {active_count}")
+
+    metric_payload = {
+        "series": [
+            {
+                "metric": "boundary.active_sessions",
+                "type": 3,
+                "points": [
+                    {
+                        "timestamp": int(time.time()),
+                        "value": active_count,
+                    }
+                ],
+                "resources": [
+                    {
+                        "name": "hcp-boundary",
+                        "type": "service",
+                    }
+                ],
+            }
+        ]
+    }
+
+    dd_request = urllib.request.Request(
+        f"https://api.{dd_site}/api/v2/series",
+        data=json.dumps(metric_payload).encode(),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "DD-API-KEY": datadog_secret["api_key"],
+        },
+    )
+
+    with urllib.request.urlopen(dd_request, timeout=10) as response:
+        dd_status = response.status
+
+    print(
+        f"Published Datadog metric: "
+        f"boundary.active_sessions={active_count}"
+    )
+
+    return {
+        "statusCode": 200,
+        "body": {
+            "success": True,
+            "active_sessions": active_count,
+            "datadog_http_status": dd_status,
+        },
+    }
+```
+
+---
+
+# Step 26 — Schedule BoundarySessionCounter Every Minute
+
+Create EventBridge schedule:
+
+```bash
+aws events put-rule \
+  --name boundary-session-counter-every-minute \
+  --schedule-expression 'rate(1 minute)' \
+  --state ENABLED
+```
+
+Allow EventBridge to invoke Lambda:
+
+```bash
+aws lambda add-permission \
+  --function-name BoundarySessionCounter \
+  --statement-id EventBridgeBoundarySessionCounter \
+  --action lambda:InvokeFunction \
+  --principal events.amazonaws.com \
+  --source-arn "arn:aws:events:<AWS_REGION>:<AWS_ACCOUNT_ID>:rule/boundary-session-counter-every-minute"
+```
+
+Add target:
+
+```bash
+aws events put-targets \
+  --rule boundary-session-counter-every-minute \
+  --targets "Id"="1","Arn"="arn:aws:lambda:<AWS_REGION>:<AWS_ACCOUNT_ID>:function:BoundarySessionCounter"
+```
+
+---
+
+# Step 27 — Configure Datadog AWS Connection
+
+Create or configure:
+
+```text
+Boundary-AWS-Scaling
+```
+
+Use:
+
+```text
+AWS Account ID:
+<AWS_ACCOUNT_ID>
+
+AWS Role:
+DatadogBoundaryScalingRole
+```
+
+Test the connection before configuring workflows.
+
+---
+
+# Step 28 — Configure Datadog Scale-Out Monitor
+
+Monitor name:
+
+```text
+Boundary Active Sessions - Scale Out
+```
+
+Metric:
+
+```text
+boundary.active_sessions
+```
+
+Filter:
+
+```text
+service:hcp-boundary
+```
+
+Condition:
+
+```text
+> 9
+```
+
+Meaning:
+
+```text
+10 or more active Boundary sessions
+```
+
+Trigger workflow:
+
+```text
+Boundary-Worker-Scale-Out
+```
+
+---
+
+# Step 29 — Configure Datadog Scale-Out Workflow
+
+Workflow:
+
+```text
+Boundary-Worker-Scale-Out
+```
+
+Action:
+
+```text
+AWS
+→ AWS Autoscaling
+→ Set desired capacity
+```
+
+Configuration:
+
+```text
+Connection:
+Boundary-AWS-Scaling
+
+Region:
+us-east-1
+
+Auto Scaling Group:
+boundary-worker-auto-scaling-group
+
+Desired Capacity:
+1
+```
+
+---
+
+# Step 30 — Configure Datadog Scale-In Monitor
+
+Monitor name:
+
+```text
+Boundary Active Sessions - Scale In
+```
+
+Metric:
+
+```text
+boundary.active_sessions
+```
+
+Filter:
+
+```text
+service:hcp-boundary
+```
+
+Condition:
+
+```text
+MAX over last 3 minutes < 10
+```
+
+Why:
+
+```text
+8, 7, 6
+MAX = 8
+→ all values below 10
+→ scale in
+
+8, 10, 7
+MAX = 10
+→ do not scale in
+```
+
+Trigger:
+
+```text
+Boundary-Worker-Scale-In
+```
+
+---
+
+# Step 31 — Configure Datadog Scale-In Workflow
+
+Workflow:
+
+```text
+Boundary-Worker-Scale-In
+```
+
+Action:
+
+```text
+AWS Autoscaling
+→ Set desired capacity
+```
+
+Configuration:
+
+```text
+Connection:
+Boundary-AWS-Scaling
+
+Region:
+us-east-1
+
+Auto Scaling Group:
+boundary-worker-auto-scaling-group
+
+Desired Capacity:
+0
+```
+
+---
+
+# Step 32 — Create ASG Termination Lifecycle Hook
+
+```bash
+aws autoscaling put-lifecycle-hook \
+  --lifecycle-hook-name boundary-worker-terminate-cleanup \
+  --auto-scaling-group-name boundary-worker-auto-scaling-group \
+  --lifecycle-transition autoscaling:EC2_INSTANCE_TERMINATING \
+  --heartbeat-timeout 120 \
+  --default-result CONTINUE
+```
+
+## Why we use it
+
+It pauses termination in:
+
+```text
+Terminating:Wait
+```
+
+so the cleanup Lambda can delete the matching HCP Boundary worker.
+
+---
+
+# Step 33 — Create BoundaryWorkerCleanup Lambda
+
+Function:
+
+```text
+BoundaryWorkerCleanup
+```
+
+Runtime:
+
+```text
+Python 3.12
+```
+
+Execution role:
+
+```text
+BoundaryWorkerCleanup-role-ro7ij99a
+```
+
+Environment variables:
+
+```text
+VAULT_ADDR=<HCP_VAULT_PRIVATE_ENDPOINT>
+VAULT_NAMESPACE=admin
+VAULT_AWS_ROLE=boundary-worker-cleanup
+
+BOUNDARY_ADDR=<HCP_BOUNDARY_ADDR>
+BOUNDARY_AUTH_METHOD_ID=<BOUNDARY_PASSWORD_AUTH_METHOD_ID>
+```
+
+---
+
+# Step 34 — Add BoundaryWorkerCleanup Lambda Code
+
+```python
+import os
+import json
+import base64
+import urllib.request
+import urllib.error
+import urllib.parse
+
+import boto3
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
+
+
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+autoscaling = boto3.client("autoscaling", region_name=AWS_REGION)
+
+
+def vault_aws_login(vault_addr, namespace, vault_role):
+    credentials = (
+        boto3.Session()
+        .get_credentials()
+        .get_frozen_credentials()
+    )
+
+    sts_url = "https://sts.amazonaws.com/"
+    sts_body = "Action=GetCallerIdentity&Version=2011-06-15"
+
+    aws_request = AWSRequest(
+        method="POST",
+        url=sts_url,
+        data=sts_body,
+        headers={
+            "Content-Type":
+                "application/x-www-form-urlencoded; charset=utf-8",
+            "Host": "sts.amazonaws.com",
+        },
+    )
+
+    SigV4Auth(
+        credentials,
+        "sts",
+        "us-east-1",
+    ).add_auth(aws_request)
 
     payload = {
         "role": vault_role,
@@ -1606,7 +1761,7 @@ def vault_aws_login(vault_addr, namespace, vault_role):
             sts_body.encode()
         ).decode(),
         "iam_request_headers": base64.b64encode(
-            json.dumps(signed_headers).encode()
+            json.dumps(dict(aws_request.headers.items())).encode()
         ).decode(),
     }
 
@@ -1627,10 +1782,9 @@ def vault_aws_login(vault_addr, namespace, vault_role):
     return result["auth"]["client_token"]
 
 
-def get_cleanup_secret(vault_addr, namespace, vault_token):
+def vault_read_cleanup_secret(vault_addr, namespace, vault_token):
     request = urllib.request.Request(
-        f"{vault_addr}/v1/"
-        "boundary-registration/data/worker-cleanup",
+        f"{vault_addr}/v1/boundary-registration/data/worker-cleanup",
         method="GET",
         headers={
             "X-Vault-Token": vault_token,
@@ -1645,12 +1799,7 @@ def get_cleanup_secret(vault_addr, namespace, vault_token):
     return result["data"]["data"]
 
 
-def boundary_login(
-    boundary_addr,
-    auth_method_id,
-    login_name,
-    password,
-):
+def boundary_login(boundary_addr, auth_method_id, login_name, password):
     payload = {
         "attributes": {
             "login_name": login_name,
@@ -1660,13 +1809,10 @@ def boundary_login(
     }
 
     request = urllib.request.Request(
-        f"{boundary_addr}/v1/auth-methods/"
-        f"{auth_method_id}:authenticate",
+        f"{boundary_addr}/v1/auth-methods/{auth_method_id}:authenticate",
         data=json.dumps(payload).encode(),
         method="POST",
-        headers={
-            "Content-Type": "application/json",
-        },
+        headers={"Content-Type": "application/json"},
     )
 
     with urllib.request.urlopen(request, timeout=15) as response:
@@ -1676,11 +1822,7 @@ def boundary_login(
     return result["attributes"]["token"]
 
 
-def find_boundary_worker(
-    boundary_addr,
-    boundary_token,
-    instance_id,
-):
+def find_worker(boundary_addr, boundary_token, instance_id):
     expected_name = f"aws-asg-{instance_id}"
 
     query = urllib.parse.urlencode({
@@ -1700,22 +1842,14 @@ def find_boundary_worker(
 
     for worker in result.get("items", []):
         if worker.get("name") == expected_name:
-            print(
-                "Matching Boundary worker found: "
-                f"{worker.get('id')}"
-            )
+            print(f"Matching Boundary worker found: {expected_name}")
             return worker.get("id")
 
+    print(f"No matching Boundary worker found: {expected_name}")
     return None
 
 
-def delete_boundary_worker(
-    boundary_addr,
-    boundary_token,
-    worker_id,
-):
-    print(f"Deleting Boundary worker: {worker_id}")
-
+def delete_worker(boundary_addr, boundary_token, worker_id):
     request = urllib.request.Request(
         f"{boundary_addr}/v1/workers/{worker_id}",
         method="DELETE",
@@ -1734,38 +1868,31 @@ def delete_boundary_worker(
         if exc.code == 404:
             print("Boundary worker already absent")
             return
+
         raise
 
 
-def complete_lifecycle_action(
-    asg_name,
-    lifecycle_hook_name,
-    lifecycle_action_token,
-):
+def complete_lifecycle(asg_name, hook_name, action_token):
     autoscaling.complete_lifecycle_action(
-        LifecycleHookName=lifecycle_hook_name,
+        LifecycleHookName=hook_name,
         AutoScalingGroupName=asg_name,
         LifecycleActionResult="CONTINUE",
-        LifecycleActionToken=lifecycle_action_token,
+        LifecycleActionToken=action_token,
     )
 
     print("Lifecycle action completed with CONTINUE")
 
 
 def lambda_handler(event, context):
-    print(f"Received event: {json.dumps(event)}")
+    detail = event["detail"]
 
-    detail = event.get("detail", {})
-
-    instance_id = detail.get("EC2InstanceId")
-    asg_name = detail.get("AutoScalingGroupName")
-    hook_name = detail.get("LifecycleHookName")
-    action_token = detail.get("LifecycleActionToken")
-
-    expected_worker_name = f"aws-asg-{instance_id}"
+    instance_id = detail["EC2InstanceId"]
+    asg_name = detail["AutoScalingGroupName"]
+    hook_name = detail["LifecycleHookName"]
+    action_token = detail["LifecycleActionToken"]
 
     print(f"EC2 Instance ID: {instance_id}")
-    print(f"Expected Boundary worker: {expected_worker_name}")
+    print(f"Expected Boundary worker: aws-asg-{instance_id}")
 
     try:
         vault_addr = os.environ["VAULT_ADDR"].rstrip("/")
@@ -1781,7 +1908,7 @@ def lambda_handler(event, context):
             vault_role,
         )
 
-        secret = get_cleanup_secret(
+        secret = vault_read_cleanup_secret(
             vault_addr,
             namespace,
             vault_token,
@@ -1794,20 +1921,20 @@ def lambda_handler(event, context):
             secret["password"],
         )
 
-        worker_id = find_boundary_worker(
+        worker_id = find_worker(
             boundary_addr,
             boundary_token,
             instance_id,
         )
 
         if worker_id:
-            delete_boundary_worker(
+            delete_worker(
                 boundary_addr,
                 boundary_token,
                 worker_id,
             )
 
-        complete_lifecycle_action(
+        complete_lifecycle(
             asg_name,
             hook_name,
             action_token,
@@ -1826,7 +1953,7 @@ def lambda_handler(event, context):
         print(f"Cleanup ERROR: {str(exc)}")
 
         try:
-            complete_lifecycle_action(
+            complete_lifecycle(
                 asg_name,
                 hook_name,
                 action_token,
@@ -1839,9 +1966,9 @@ def lambda_handler(event, context):
 
 ---
 
-# Step 29 — Create EventBridge Cleanup Rule
+# Step 35 — Create Cleanup EventBridge Rule
 
-Event pattern:
+Create `event-pattern.json`:
 
 ```json
 {
@@ -1868,7 +1995,7 @@ aws events put-rule \
   --state ENABLED
 ```
 
-Allow EventBridge:
+Allow invocation:
 
 ```bash
 aws lambda add-permission \
@@ -1889,16 +2016,38 @@ aws events put-targets \
 
 ---
 
-# Step 30 — Test 10 Active Sessions
+# Step 36 — Test BoundarySessionCounter
 
-Set:
+Manually run Lambda with:
 
-```bash
-export BOUNDARY_ADDR="<HCP_BOUNDARY_ADDR>"
-export BOUNDARY_TOKEN="<FRESH_BOUNDARY_TOKEN>"
+```json
+{}
 ```
 
-Start 10:
+Expected logs:
+
+```text
+Vault AWS authentication successful
+Boundary monitoring credentials retrieved from Vault
+Datadog API key retrieved from Vault
+Boundary authentication successful
+Active Boundary sessions: <number>
+Published Datadog metric: boundary.active_sessions=<number>
+```
+
+Expected Datadog HTTP status:
+
+```text
+202
+```
+
+---
+
+# Step 37 — Test Scale-Out
+
+Create 10 Boundary sessions.
+
+Example:
 
 ```bash
 for i in $(seq 1 10); do
@@ -1910,7 +2059,7 @@ for i in $(seq 1 10); do
 done
 ```
 
-Check:
+Count:
 
 ```bash
 boundary sessions list \
@@ -1927,162 +2076,98 @@ Expected:
 10
 ```
 
----
-
-# Step 31 — Verify Scale-Out
-
-Expected:
+Then verify:
 
 ```text
-BoundarySessionCounter
-→ Active Boundary sessions: 10
-
-Datadog
-→ boundary.active_sessions = 10
-
-Scale-Out Monitor
-→ ALERT
-
-Scale-Out Workflow
-→ Success
-
-ASG
-→ Desired 0 → 1
-
-EC2
-→ InService
-
-HCP Boundary
-→ aws-asg-i-xxxxxxxx
+Datadog metric = 10
+Scale-Out Monitor = ALERT
+Scale-Out Workflow = Success
+ASG Desired = 1
+New EC2 = InService
+New Boundary worker = aws-asg-i-...
 ```
 
 ---
 
-# Step 32 — Stop Sessions
+# Step 38 — Test Scale-In
+
+Stop sessions:
 
 ```bash
 pkill -f 'boundary connect ssh'
 ```
 
-Verify:
+Verify active count drops below 10.
 
-```bash
-boundary sessions list \
-  -scope-id=global \
-  -recursive \
-  -format=json \
-  -token env://BOUNDARY_TOKEN \
-| jq '[.items // [] | .[] | select(.status == "active")] | length'
-```
+Wait for the configured 3-minute scale-in period.
 
 Expected:
 
 ```text
-0
+Scale-In Monitor = ALERT
+Scale-In Workflow = Success
+ASG Desired = 0
+EC2 = Terminating:Wait
+BoundaryWorkerCleanup executes
+Boundary worker deleted
+CompleteLifecycleAction = CONTINUE
+EC2 = Terminated
 ```
 
 ---
 
-# Step 33 — Verify Scale-In
+# Final Current Resource List
 
-After the 3-minute threshold:
-
-```text
-Datadog Scale-In
-→ ALERT
-
-Workflow
-→ Desired = 0
-
-ASG
-→ instance Terminating:Wait
-
-EventBridge
-→ BoundaryWorkerCleanup
-
-BoundaryWorkerCleanup
-→ delete aws-asg-<instance-id>
-
-CompleteLifecycleAction
-→ CONTINUE
-
-EC2
-→ Terminated
-```
-
----
-
-# Step 34 — Final Resource List
-
-## Keep
+AWS IAM:
 
 ```text
 BoundaryWorkerRole
 BoundarySessionMonitorLambdaRole
 BoundaryWorkerCleanup-role-ro7ij99a
 DatadogBoundaryScalingRole
+```
 
-BoundarySessionCounter Lambda
-BoundaryWorkerCleanup Lambda
+AWS Lambda:
 
-boundary-session-counter-every-minute
-boundary-worker-termination-cleanup
+```text
+BoundarySessionCounter
+BoundaryWorkerCleanup
+```
 
+AWS Auto Scaling:
+
+```text
+autoscaling-worker-template
 boundary-worker-auto-scaling-group
 boundary-worker-terminate-cleanup
+```
 
-Vault AWS roles:
+EventBridge:
+
+```text
+boundary-session-counter-every-minute
+boundary-worker-termination-cleanup
+```
+
+Vault:
+
+```text
 boundary-asg-worker
 boundary-session-monitor-lambda
 boundary-worker-cleanup
+
+boundary-asg-worker policy
+boundary-session-monitor policy
+boundary-worker-cleanup policy
 ```
 
-## Remove / Do Not Recreate
+Datadog:
 
 ```text
-BoundaryWorkerScaler Lambda
-BoundaryWorkerScalingPolicy old execution role
-old Datadog lambda:InvokeFunction permission
-unused duplicate cleanup roles
-unused EventBridge Lambda invocation roles
-```
-
----
-
-# Final Working Flow
-
-```text
-Boundary Sessions
-      ↓
-BoundarySessionCounter
-      ↓
-Datadog
-      ↓
-DatadogBoundaryScalingRole
-      ↓
-AWS Auto Scaling
-      ↓
-Temporary Boundary Worker
-```
-
-Scale-in:
-
-```text
-Datadog
-   ↓
-ASG Desired = 0
-   ↓
-Lifecycle Hook
-   ↓
-EventBridge
-   ↓
-BoundaryWorkerCleanup
-   ↓
-Vault
-   ↓
-Boundary
-   ↓
-Delete temporary worker
-   ↓
-EC2 terminates
+boundary.active_sessions
+Boundary Active Sessions - Scale Out
+Boundary Active Sessions - Scale In
+Boundary-Worker-Scale-Out
+Boundary-Worker-Scale-In
+Boundary-AWS-Scaling
 ```
