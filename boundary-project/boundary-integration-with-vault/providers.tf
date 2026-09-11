@@ -25,16 +25,13 @@ provider "azurerm" {
 # Credentials come from TF_VAR_boundary_password (see variables.tf) — never
 # hardcoded here. auth_method_id is the org's initial password auth method.
 provider "boundary" {
-  addr                   = "https://0df56b42-1dcf-4236-8b0d-abaaf4c53353.boundary.hashicorp.cloud"
-  auth_method_id         = "ampw_sVTvvqApr1"
-  auth_method_login_name = "admin"
+  addr                   = var.boundary_addr
+  auth_method_id         = var.boundary_auth_method_id
+  auth_method_login_name = var.boundary_login_name
   auth_method_password   = var.boundary_password
 }
 
-# Admin token comes from TF_VAR_boundary_vault_token — see
-# ../../boundary-integration-with-vault/ssh-certificate-injection.md for how
-# to create the scoped boundary-ssh-certs token this should actually hold.
 provider "vault" {
   address = var.vault_addr
-  token   = var.boundary_vault_token
+  token   = var.vault_token
 }

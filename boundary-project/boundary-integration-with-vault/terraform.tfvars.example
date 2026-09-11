@@ -1,0 +1,17 @@
+boundary_addr           = "https://0df56b42-1dcf-4236-8b0d-abaaf4c53353.boundary.hashicorp.cloud"
+boundary_auth_method_id = "ampw_sVTvvqApr1"
+boundary_login_name     = "admin"
+vault_addr              = "https://vault-cluster-public-vault-ca07e311.e1ca4617.z1.hashicorp.cloud:8200"
+
+boundary_controller_upstream_ips = [
+  "100.61.14.14",
+  "32.192.161.171",
+  "3.224.31.74",
+]
+
+azure_ssh_public_key_name                = "general-key"
+azure_ssh_public_key_resource_group_name = "boundary_resource-west_us_2"
+
+# Copy this file to terraform.tfvars and replace the placeholder locally.
+boundary_password = "<your-boundary-password>"
+vault_token       = "<your-vault-token>"

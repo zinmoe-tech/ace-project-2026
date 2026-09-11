@@ -1,4 +1,6 @@
 *.pem
+**/key/
+**/keys/
 *.env
 .env
 .env.*
@@ -7,6 +9,8 @@ hcp.auto.pkrvars.hcl
 !hcp.auto.pkrvars.hcl.example
 *.tfstate
 *.tfstate.*
+*.tfvars
+!*.tfvars.example
 .worker-auth-token
 .terraform/
 .terraform.lock.hcl

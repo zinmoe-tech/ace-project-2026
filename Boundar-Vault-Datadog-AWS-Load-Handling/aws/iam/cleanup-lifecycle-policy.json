@@ -1,0 +1,11 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CompleteBoundaryWorkerTermination",
+      "Effect": "Allow",
+      "Action": "autoscaling:CompleteLifecycleAction",
+      "Resource": "arn:aws:autoscaling:<AWS_REGION>:<AWS_ACCOUNT_ID>:autoScalingGroup:<ASG_UUID>:autoScalingGroupName/boundary-worker-auto-scaling-group"
+    }
+  ]
+}

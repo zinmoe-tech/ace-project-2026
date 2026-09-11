@@ -44,3 +44,20 @@ variable "azure_sp_linux_target_04_client_secret" {
   type      = string
   sensitive = true
 }
+
+# Vault-issued short-lived SSH certificates for the linux targets — see
+# boundary_credentials.tf and
+# ../../boundary-integration-with-vault/ssh-certificate-injection.md.
+variable "vault_addr" {
+  type        = string
+  description = "HCP Vault public cluster address, e.g. https://<vault-address>:8200."
+}
+
+# Set via TF_VAR_boundary_vault_token — never put the real value in this
+# file or in a committed .tfvars file. Scope this token to the
+# boundary-ssh-certs policy, not an admin/root token.
+variable "boundary_vault_token" {
+  type        = string
+  description = "Vault token Boundary uses to request SSH certificates."
+  sensitive   = true
+}

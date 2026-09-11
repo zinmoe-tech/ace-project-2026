@@ -1,3 +1,8 @@
+# download `boundary` binary
+sudo apt-get update && sudo apt-get install jq net-tools unzip -y ;\
+wget -q "$(curl -fsSL "https://api.releases.hashicorp.com/v1/releases/boundary/latest?license_class=enterprise" | jq -r '.builds[] | select(.arch == "amd64" and .os == "linux") | .url')" ;\
+unzip *.zip
+
 ### self-managed worker systemd setup ###
 
 # adduser
@@ -23,7 +28,7 @@ sudo vi /etc/boundary.d/pki-worker.hcl
 ########################
 
 disable_mlock = true
-hcp_boundary_cluster_id = "0df56b42-1dcf-4236-8b0d-abaaf4c53353"
+hcp_boundary_cluster_id = "95390bdc-e040-47df-8638-7c996c0f98f7"
 
 listener "tcp" {
   address = "0.0.0.0:9202"
@@ -31,7 +36,7 @@ listener "tcp" {
 }
         
 worker {
-  public_addr = "10.0.111.49" # worker's private ip
+  public_addr = "20.64.176.75" # worker's private ip
   auth_storage_path = "/etc/boundary.d/worker"
   tags {
     type = ["worker1", "private", "ingress", "zone-a", "downstream"]

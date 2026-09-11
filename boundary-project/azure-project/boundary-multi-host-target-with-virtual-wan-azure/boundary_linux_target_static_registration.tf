@@ -34,7 +34,7 @@ resource "boundary_target" "linux_target_01_ssh" {
   ]
 
   injected_application_credential_source_ids = [
-    boundary_credential_ssh_private_key.linux_target_key.id,
+    boundary_credential_library_vault_ssh_certificate.linux_target_cert.id,
   ]
 }
 
@@ -68,7 +68,7 @@ resource "boundary_target" "linux_target_02_ssh" {
   ]
 
   injected_application_credential_source_ids = [
-    boundary_credential_ssh_private_key.linux_target_key.id,
+    boundary_credential_library_vault_ssh_certificate.linux_target_cert.id,
   ]
 }
 
@@ -121,7 +121,7 @@ resource "boundary_target" "linux_target_02_ssh" {
 #   ]
 
 #   injected_application_credential_source_ids = [
-#     boundary_credential_ssh_private_key.linux_target_key.id,
+#     boundary_credential_library_vault_ssh_certificate.linux_target_cert.id,
 #   ]
 # }
 
