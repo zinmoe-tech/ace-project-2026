@@ -1,0 +1,69 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad=0.25, nodesep=0.4, ranksep=0.7, fontname="DejaVu Sans", label="HCP Boundary + HCP Vault + Datadog + AWS Load Handling", labelloc=t, fontsize=20];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=10, fillcolor="#F7F9FC", color="#5B6573", margin="0.15,0.10"];
+  edge [fontname="DejaVu Sans", fontsize=9, color="#4A5568", arrowsize=0.8];
+
+  user [label="User\nBoundary CLI / SSH"];
+
+  subgraph cluster_boundary {
+    label="HCP Boundary"; color="#7656D6"; style="rounded";
+    controller [label="HCP Boundary Controller\nSession source of truth"];
+    perm [label="Permanent worker\nself-worker-01\n10.1.99.241:9202"];
+    temp [label="Temporary ASG worker\naws-asg-<instance-id>"];
+    target [label="target-01\n10.1.10.42:22"];
+  }
+
+  subgraph cluster_aws {
+    label="AWS us-east-1"; color="#E58B2A"; style="rounded";
+    schedule [label="EventBridge schedule\nboundary-session-counter-every-minute\nrate(1 minute)"];
+    counter [label="Lambda\nBoundarySessionCounter"];
+    asg [label="Auto Scaling Group\nboundary-worker-auto-scaling-group\nMin 0 / Desired 0 or 1 / Max 2"];
+    hook [label="Termination lifecycle hook\nboundary-worker-terminate-cleanup\n120 sec / CONTINUE"];
+    termrule [label="EventBridge rule\nboundary-worker-termination-cleanup\nLambda target; no RoleArn"];
+    cleanup [label="Lambda\nBoundaryWorkerCleanup"];
+  }
+
+  subgraph cluster_vault {
+    label="HCP Vault - namespace admin"; color="#2E8B57"; style="rounded";
+    vauth [label="Vault AWS Auth"];
+    kv [label="KV v2: boundary-registration\nasg-worker\nsession-monitor\ndatadog-metrics\nworker-cleanup"];
+    sshca [label="SSH Secrets Engine\nboundary-ssh/\nrole: boundary-client\nTTL 10m"];
+  }
+
+  subgraph cluster_dd {
+    label="Datadog"; color="#7B3FE4"; style="rounded";
+    metric [label="Metric\nboundary.active_sessions"];
+    out [label="Scale-Out monitor/workflow\nthreshold > 9\nSet desired = 1"];
+    in [label="Scale-In monitor/workflow\nMAX(last 3m) < 10\nSet desired = 0"];
+    ddrole [label="AWS connection\nBoundary-AWS-Scaling\nassumes DatadogIntegrationRole"];
+  }
+
+  user -> controller;
+  controller -> perm -> target;
+  controller -> temp -> target;
+
+  schedule -> counter;
+  counter -> vauth [label="AWS IAM auth"];
+  vauth -> kv;
+  counter -> controller [label="GET sessions\nglobal recursive"];
+  counter -> metric [label="publish gauge"];
+
+  metric -> out;
+  metric -> in;
+  out -> ddrole;
+  in -> ddrole;
+  ddrole -> asg [label="SetDesiredCapacity"];
+
+  asg -> temp [label="launch + user data"];
+  temp -> vauth [label="BoundaryWorkerRole"];
+  temp -> controller [label="worker-led registration"];
+
+  asg -> hook [label="terminate"];
+  hook -> termrule;
+  termrule -> cleanup;
+  cleanup -> vauth [label="AWS IAM auth"];
+  cleanup -> controller [label="find + DELETE worker"];
+  cleanup -> asg [label="CompleteLifecycleAction\nCONTINUE"];
+
+  controller -> sshca [style=dashed, label="credential store / SSH cert signing"];
+}

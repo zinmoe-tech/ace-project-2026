@@ -1,0 +1,43 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="white", pad=0.25, nodesep=0.4, ranksep=0.5, fontname="DejaVu Sans", label="Overall Implementation Architecture", labelloc=t, fontsize=20];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=10, fillcolor="#F7F9FC", color="#5B6573", margin="0.18,0.10"];
+  edge [fontname="DejaVu Sans", fontsize=9, color="#4A5568", arrowsize=0.8];
+
+  user [label="User / Boundary CLI"];
+  boundary [label="HCP Boundary\nController + session source of truth"];
+  perm [label="Permanent worker\nself-worker-01"];
+  temp [label="Temporary ASG worker\naws-asg-<instance-id>"];
+  target [label="target-01\n10.1.10.42:22"];
+
+  schedule [label="EventBridge schedule\nrate(1 minute)"];
+  counter [label="BoundarySessionCounter\ncount active sessions"];
+  metric [label="Datadog\nboundary.active_sessions"];
+  dd [label="Datadog workflows\nScale-Out: desired 1\nScale-In: desired 0"];
+  asg [label="AWS Auto Scaling Group\nboundary-worker-auto-scaling-group"];
+
+  vault [label="HCP Vault\nAWS Auth + KV + SSH CA"];
+  hook [label="Termination lifecycle hook\nTerminating:Wait"];
+  eb [label="EventBridge cleanup rule\nno target RoleArn"];
+  cleanup [label="BoundaryWorkerCleanup\nDELETE temporary worker\nCompleteLifecycleAction(CONTINUE)"];
+
+  user -> boundary;
+  boundary -> perm;
+  boundary -> temp;
+  perm -> target;
+  temp -> target;
+
+  schedule -> counter -> boundary [label="GET sessions"];
+  counter -> vault [label="AWS IAM auth + secrets"];
+  counter -> metric -> dd -> asg;
+  asg -> temp [label="launch worker"];
+  temp -> vault [label="AWS IAM auth\nregistration secret"];
+  temp -> boundary [label="worker-led registration"];
+
+  asg -> hook [label="scale-in terminate"];
+  hook -> eb -> cleanup;
+  cleanup -> vault [label="AWS IAM auth\ncleanup credential"];
+  cleanup -> boundary [label="find + delete worker"];
+  cleanup -> asg [label="CONTINUE"];
+
+  boundary -> vault [style=dashed, label="SSH certificate signing"];
+}

@@ -1,0 +1,18 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="white", pad=0.25, nodesep=0.35, ranksep=0.45, fontname="DejaVu Sans", label="Scale-In Process", labelloc=t, fontsize=20];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=10, fillcolor="#F7F9FC", color="#5B6573", margin="0.18,0.10"];
+  edge [fontname="DejaVu Sans", fontsize=9, color="#4A5568"];
+  a [label="1. boundary.active_sessions remains below 10\nfor the configured 3-minute MAX window"];
+  b [label="2. Boundary-Worker-Scale-In workflow runs"];
+  c [label="3. DatadogIntegrationRole calls SetDesiredCapacity = 0"];
+  d [label="4. ASG selects the temporary EC2 instance for termination"];
+  e [label="5. boundary-worker-terminate-cleanup lifecycle hook\nputs instance in Terminating:Wait"];
+  f [label="6. EventBridge rule boundary-worker-termination-cleanup\ninvokes BoundaryWorkerCleanup directly (no RoleArn)"];
+  g [label="7. Cleanup Lambda authenticates to Vault using AWS IAM\nand reads boundary-registration/worker-cleanup"];
+  h [label="8. Cleanup Lambda authenticates to HCP Boundary"];
+  i [label="9. Lambda finds exact worker name\naws-asg-<EC2InstanceId>"];
+  j [label="10. Lambda DELETEs /v1/workers/<worker-id>\nSuccess response: HTTP 204"];
+  k [label="11. Lambda calls CompleteLifecycleAction(CONTINUE)"];
+  l [label="12. EC2 termination completes; temporary Boundary worker is removed"];
+  a->b->c->d->e->f->g->h->i->j->k->l;
+}

@@ -1,0 +1,19 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="white", pad=0.25, nodesep=0.35, ranksep=0.45, fontname="DejaVu Sans", label="Scale-Out Process", labelloc=t, fontsize=20];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=10, fillcolor="#F7F9FC", color="#5B6573", margin="0.18,0.10"];
+  edge [fontname="DejaVu Sans", fontsize=9, color="#4A5568"];
+  a [label="1. Users create Boundary sessions"];
+  b [label="2. BoundarySessionCounter runs every minute"];
+  c [label="3. Lambda authenticates to Vault with AWS IAM\nand reads Boundary + Datadog credentials"];
+  d [label="4. Lambda lists global recursive sessions\nand counts status == active"];
+  e [label="5. Lambda publishes boundary.active_sessions to Datadog"];
+  f [label="6. Datadog monitor evaluates boundary.active_sessions > 9"];
+  g [label="7. Boundary-Worker-Scale-Out workflow runs"];
+  h [label="8. DatadogIntegrationRole calls SetDesiredCapacity = 1"];
+  i [label="9. ASG launches EC2 from autoscaling-worker-template"];
+  j [label="10. User data installs Boundary/Vault, gets EC2 instance ID,\nand starts Boundary worker service"];
+  k [label="11. Worker authenticates to Vault with BoundaryWorkerRole\nand reads boundary-registration/asg-worker"];
+  l [label="12. Worker authenticates to Boundary and performs worker-led registration\nname = aws-asg-<EC2_INSTANCE_ID>"];
+  m [label="13. New temporary worker appears healthy and can receive eligible target traffic"];
+  a->b->c->d->e->f->g->h->i->j->k->l->m;
+}

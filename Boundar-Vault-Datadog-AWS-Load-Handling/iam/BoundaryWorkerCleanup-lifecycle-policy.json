@@ -1,0 +1,11 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CompleteBoundaryASGTerminationLifecycle",
+      "Effect": "Allow",
+      "Action": "autoscaling:CompleteLifecycleAction",
+      "Resource": "arn:aws:autoscaling:us-east-1:691914216603:autoScalingGroup:892a477d-98de-42a3-8f36-5262da640037:autoScalingGroupName/boundary-worker-auto-scaling-group"
+    }
+  ]
+}
