@@ -1,0 +1,13 @@
+.kube/
+kubeconfig*
+.aws/
+credentials
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+.DS_Store
+.vscode/
+.idea/
